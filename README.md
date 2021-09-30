@@ -5,4 +5,4 @@ This crate builds on top of sled and it's api is identical, except that it uses 
 
 Simply implement typed_sled::Tree on a wrapper struct of sled::Tree and you are ready to go.
 
-By no means production ready nor tested throughoutly, in particular the Subscriber api might not be implemented correctly.
+Not tested throughoutly, in particular the Subscriber api might not be implemented correctly.

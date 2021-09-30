@@ -69,16 +69,17 @@ pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 /// tree.insert(100, "one hundred");
 /// # Ok(()) }
 /// ```
-#[async_trait]
-pub trait Tree {
-    type Key: Bin;
-    type Value: Bin;
+struct Tree<K, V> {
+    inner: sled::Tree,
+    key: PhantomData<K>,
+    value: PhantomData<V>,
+}
 
-    fn tree(&self) -> &sled::Tree;
-
+// These Trait bounds should probably be specified on the functions themselves, but too lazy.
+impl<K: Bin, V: Bin> Tree<K, V> {
     /// Insert a key to a new value, returning the last value if it was set.
-    fn insert(&self, key: &Self::Key, value: &Self::Value) -> Result<Option<Self::Value>> {
-        self.tree()
+    fn insert(&self, key: &K, value: &V) -> Result<Option<V>> {
+        self.inner
             .insert(serialize(key), serialize(value))
             .map(|opt| opt.map(|old_value| deserialize(&old_value)))
     }
@@ -88,26 +89,26 @@ pub trait Tree {
     where
         F: Fn(&TransactionalTree) -> ConflictableTransactionResult<A, E>,
     {
-        self.tree().transaction(f)
+        self.inner.transaction(f)
     }
 
     /// Create a new batched update that can be atomically applied.
     ///
     /// It is possible to apply a Batch in a transaction as well, which is the way you can apply a Batch to multiple Trees atomically.
-    fn apply_batch(&self, batch: Batch<Self::Key, Self::Value>) -> Result<()> {
-        self.tree().apply_batch(batch.inner)
+    fn apply_batch(&self, batch: Batch<K, V>) -> Result<()> {
+        self.inner.apply_batch(batch.inner)
     }
 
     /// Retrieve a value from the Tree if it exists.
-    fn get(&self, key: &Self::Key) -> Result<Option<Self::Value>> {
-        self.tree()
+    fn get(&self, key: &K) -> Result<Option<V>> {
+        self.inner
             .get(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
     }
 
     /// Delete a value, returning the old value if it existed.
-    fn remove(&self, key: &Self::Key) -> Result<Option<Self::Value>> {
-        self.tree()
+    fn remove(&self, key: &K) -> Result<Option<V>> {
+        self.inner
             .remove(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
     }
@@ -119,11 +120,11 @@ pub trait Tree {
     /// If it fails it returns: - Ok(Err(CompareAndSwapError(current, proposed))) if operation failed to setup a new value. CompareAndSwapError contains current and proposed values. - Err(Error::Unsupported) if the database is opened in read-only mode.
     fn compare_and_swap(
         &self,
-        key: &Self::Key,
-        old: Option<&Self::Value>,
-        new: Option<&Self::Value>,
+        key: &K,
+        old: Option<&V>,
+        new: Option<&V>,
     ) -> Result<core::result::Result<(), CompareAndSwapError>> {
-        self.tree().compare_and_swap(
+        self.inner.compare_and_swap(
             serialize(key),
             old.map(|old| serialize(old)),
             new.map(|new| serialize(new)),
@@ -132,11 +133,11 @@ pub trait Tree {
 
     /// Fetch the value, apply a function to it and return the result.
     // not sure if implemented correctly (different trait bound for F)
-    fn update_and_fetch<F>(&self, key: &Self::Key, mut f: F) -> Result<Option<Self::Value>>
+    fn update_and_fetch<F>(&self, key: &K, mut f: F) -> Result<Option<V>>
     where
-        F: FnMut(Option<Self::Value>) -> Option<Self::Value>,
+        F: FnMut(Option<V>) -> Option<V>,
     {
-        self.tree()
+        self.inner
             .update_and_fetch(serialize(&key), |opt_value| {
                 f(opt_value.map(|v| deserialize(v))).map(|v| serialize(&v))
             })
@@ -145,11 +146,11 @@ pub trait Tree {
 
     /// Fetch the value, apply a function to it and return the previous value.
     // not sure if implemented correctly (different trait bound for F)
-    fn fetch_and_update<F>(&self, key: &Self::Key, mut f: F) -> Result<Option<Self::Value>>
+    fn fetch_and_update<F>(&self, key: &K, mut f: F) -> Result<Option<V>>
     where
-        F: FnMut(Option<Self::Value>) -> Option<Self::Value>,
+        F: FnMut(Option<V>) -> Option<V>,
     {
-        self.tree()
+        self.inner
             .fetch_and_update(serialize(key), |opt_value| {
                 f(opt_value.map(|v| deserialize(v))).map(|v| serialize(&v))
             })
@@ -165,8 +166,8 @@ pub trait Tree {
     /// to block. There is a buffer of 1024 items per
     /// `Subscriber`. This can be used to build reactive
     /// and replicated systems.
-    fn watch_prefix(&self, prefix: &Self::Value) -> Subscriber<Self::Key, Self::Value> {
-        Subscriber::from_sled(self.tree().watch_prefix(serialize(prefix)))
+    fn watch_prefix(&self, prefix: &V) -> Subscriber<K, V> {
+        Subscriber::from_sled(self.inner.watch_prefix(serialize(prefix)))
     }
 
     /// Synchronously flushes all dirty IO buffers and calls
@@ -180,7 +181,7 @@ pub trait Tree {
     /// realistic sustained workloads running on realistic
     /// hardware.
     fn flush(&self) -> Result<usize> {
-        self.tree().flush()
+        self.inner.flush()
     }
 
     /// Asynchronously flushes all dirty IO buffers
@@ -194,27 +195,27 @@ pub trait Tree {
     /// using it on realistic sustained workloads
     /// running on realistic hardware.
     async fn flush_async(&self) -> Result<usize> {
-        self.tree().flush_async().await
+        self.inner.flush_async().await
     }
 
     /// Returns `true` if the `Tree` contains a value for
     /// the specified key.
-    fn contains_key(&self, key: &Self::Key) -> Result<bool> {
-        self.tree().contains_key(serialize(key))
+    fn contains_key(&self, key: &K) -> Result<bool> {
+        self.inner.contains_key(serialize(key))
     }
 
     /// Retrieve the key and value before the provided key,
     /// if one exists.
-    fn get_lt(&self, key: &Self::Key) -> Result<Option<(Self::Key, Self::Value)>> {
-        self.tree()
+    fn get_lt(&self, key: &K) -> Result<Option<(K, V)>> {
+        self.inner
             .get_lt(serialize(key))
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Retrieve the next key and value from the `Tree` after the
     /// provided key.
-    fn get_gt(&self, key: &Self::Key) -> Result<Option<(Self::Key, Self::Value)>> {
-        self.tree()
+    fn get_gt(&self, key: &K) -> Result<Option<(K, V)>> {
+        self.inner
             .get_gt(serialize(key))
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
@@ -231,8 +232,8 @@ pub trait Tree {
     /// Merge operators are shared by all instances of a particular
     /// `Tree`. Different merge operators may be set on different
     /// `Tree`s.
-    fn merge(&self, key: &Self::Key, value: &Self::Value) -> Result<Option<Self::Value>> {
-        self.tree()
+    fn merge(&self, key: &K, value: &V) -> Result<Option<V>> {
+        self.inner
             .merge(serialize(key), serialize(value))
             .map(|res| res.map(|old_v| deserialize(&old_v)))
     }
@@ -250,83 +251,80 @@ pub trait Tree {
     /// Calling `merge` will panic if no merge operator has been
     /// configured.
     fn set_merge_operator(&self, merge_operator: impl sled::MergeOperator + 'static) {
-        self.tree().set_merge_operator(merge_operator);
+        self.inner.set_merge_operator(merge_operator);
     }
 
     /// Create a double-ended iterator over the tuples of keys and
     /// values in this tree.
-    fn iter(&self) -> Iter<Self::Key, Self::Value> {
-        Iter::from_sled(self.tree().iter())
+    fn iter(&self) -> Iter<K, V> {
+        Iter::from_sled(self.inner.iter())
     }
 
     /// Create a double-ended iterator over tuples of keys and values,
     /// where the keys fall within the specified range.
-    fn range<R: core::ops::RangeBounds<Self::Key>>(
-        &self,
-        range: R,
-    ) -> Iter<Self::Key, Self::Value> {
+    fn range<R: core::ops::RangeBounds<K>>(&self, range: R) -> Iter<K, V> {
         Iter::from_sled(
-            self.tree()
+            self.inner
                 .range(serialize(&range.start_bound())..serialize(&range.end_bound())),
         )
     }
 
     /// Create an iterator over tuples of keys and values,
     /// where the all the keys starts with the given prefix.
-    fn scan_prefix(&self, prefix: &Self::Value) -> Iter<Self::Key, Self::Value> {
-        Iter::from_sled(self.tree().scan_prefix(serialize(prefix)))
+    fn scan_prefix(&self, prefix: &V) -> Iter<K, V> {
+        Iter::from_sled(self.inner.scan_prefix(serialize(prefix)))
     }
 
     /// Returns the first key and value in the `Tree`, or
     /// `None` if the `Tree` is empty.
-    fn first(&self) -> Result<Option<(Self::Key, Self::Value)>> {
-        self.tree()
+    fn first(&self) -> Result<Option<(K, V)>> {
+        self.inner
             .first()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Returns the last key and value in the `Tree`, or
     /// `None` if the `Tree` is empty.
-    fn last(&self) -> Result<Option<(Self::Key, Self::Value)>> {
-        self.tree()
+    fn last(&self) -> Result<Option<(K, V)>> {
+        self.inner
             .last()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Atomically removes the maximum item in the `Tree` instance.
-    fn pop_max(&self) -> Result<Option<(Self::Key, Self::Value)>> {
-        self.tree()
+    fn pop_max(&self) -> Result<Option<(K, V)>> {
+        self.inner
             .pop_max()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Atomically removes the minimum item in the `Tree` instance.
-    fn pop_min(&self) -> Result<Option<(Self::Key, Self::Value)>> {
-        self.tree()
+    fn pop_min(&self) -> Result<Option<(K, V)>> {
+        self.inner
             .pop_min()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Returns the number of elements in this tree.
     fn len(&self) -> usize {
-        self.tree().len()
+        self.inner.len()
     }
 
     /// Returns `true` if the `Tree` contains no elements.
     fn is_empty(&self) -> bool {
-        self.tree().is_empty()
+        self.inner.is_empty()
     }
 
     /// Clears the `Tree`, removing all values.
     ///
     /// Note that this is not atomic.
     fn clear(&self) -> Result<()> {
-        self.tree().clear()
+        self.inner.clear()
     }
 
     /// Returns the name of the tree.
     fn name(&self) -> IVec {
-        self.tree().name()
+        self.inner.name()
     }
 
     /// Returns the CRC32 of all keys and values
@@ -335,11 +333,11 @@ pub trait Tree {
     /// This is O(N) and locks the underlying tree
     /// for the duration of the entire scan.
     fn checksum(&self) -> Result<u32> {
-        self.tree().checksum()
+        self.inner.checksum()
     }
 }
 
-pub struct Iter<K: Bin, V: Bin> {
+pub struct Iter<K, V> {
     inner: sled::Iter,
     phantom_key: PhantomData<K>,
     phantom_value: PhantomData<V>,
@@ -397,7 +395,7 @@ impl<K: Bin, V: Bin> Iter<K, V> {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct Batch<K: Bin, V: Bin> {
+pub struct Batch<K, V> {
     inner: sled::Batch,
     phantom_key: PhantomData<K>,
     phantom_value: PhantomData<V>,
@@ -413,7 +411,7 @@ impl<K: Bin, V: Bin> Batch<K, V> {
     }
 }
 
-pub struct Subscriber<K: Bin, V: Bin> {
+pub struct Subscriber<K, V> {
     inner: sled::Subscriber,
     phantom_key: PhantomData<K>,
     phantom_value: PhantomData<V>,
