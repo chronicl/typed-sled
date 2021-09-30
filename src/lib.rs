@@ -77,6 +77,14 @@ struct Tree<K, V> {
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
 impl<K: Bin, V: Bin> Tree<K, V> {
+    fn init<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
+        Self {
+            inner: db.open_tree(id.as_ref()).unwrap(),
+            key: PhantomData,
+            value: PhantomData,
+        }
+    }
+
     /// Insert a key to a new value, returning the last value if it was set.
     fn insert(&self, key: &K, value: &V) -> Result<Option<V>> {
         self.inner
