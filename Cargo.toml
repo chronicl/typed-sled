@@ -1,7 +1,7 @@
 [package]
 name = "typed-sled"
 description = "Sled but with types instead of bytes."
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 license = "MIT"
 

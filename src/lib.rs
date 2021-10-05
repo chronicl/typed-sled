@@ -51,22 +51,10 @@ pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 /// # Example
 ///
 /// ```
-/// struct Wrapper {
-///     inner: sled::Tree,
-/// }
-
-/// impl Tree for Wrapper {
-///     type Key = u64;
-///     type Value = String;
-
-///     pub fn tree(&self) -> &sled::Tree {
-///         &self.inner
-///     }
-/// }
 /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let db: sled::Db = sled::open("db")?;
-/// let tree: sled::Tree = Wrapper{ inner: db.open_tree(b"tree for Wrapper")? };
-/// tree.insert(100, "one hundred");
+/// let animals = typed_sled::Tree<String, Animal>::init(&db, "animals")
+/// tree.insert("Larry", Animal::Dog);
 /// # Ok(()) }
 /// ```
 pub struct Tree<K, V> {
@@ -77,6 +65,16 @@ pub struct Tree<K, V> {
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
 impl<K: Bin, V: Bin> Tree<K, V> {
+    /// Initialize a typed tree. The id identifies the tree to be opened from the db.
+    /// # Example
+    ///
+    /// ```
+    /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let db: sled::Db = sled::open("db")?;
+    /// let animals = typed_sled::Tree<String, Animal>::init(&db, "animals")
+    /// tree.insert("Larry", Animal::Dog);
+    /// # Ok(()) }
+    /// ```
     pub fn init<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         Self {
             inner: db.open_tree(id.as_ref()).unwrap(),
