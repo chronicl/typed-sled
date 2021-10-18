@@ -2,7 +2,7 @@
 name = "typed-sled"
 description = "Sled but with types instead of bytes."
 version = "0.1.9"
-edition = "2021"
+edition = "2018"
 license = "MIT"
 repository = "https://github.com/chronicl/typed-sled"
 
