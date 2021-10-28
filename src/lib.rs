@@ -1,4 +1,4 @@
-#![feature(trait_alias)]
+// #![feature(trait_alias)]
 //! Sled with Types instead of Bytes.
 //! This crate builds on top of `sled` and handles the (de)serialization
 //! of keys and values that are inserted into a sled::Tree for you.
@@ -42,11 +42,11 @@ use std::marker::PhantomData;
 
 pub use sled;
 
-pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
+// pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 
 /// A flash-sympathetic persistent lock-free B+ tree.
 ///
-/// A `Tree` represents a single logical keyspace / namespace / bucket.
+/// A `Tree` represents a single logical keyspacFe / namespace / bucket.
 ///
 /// # Example
 ///
@@ -64,7 +64,11 @@ pub struct Tree<K, V> {
 }
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
-impl<K: Bin, V: Bin> Tree<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Tree<K, V>
+{
     /// Initialize a typed tree. The id identifies the tree to be opened from the db.
     /// # Example
     ///
@@ -349,7 +353,11 @@ pub struct Iter<K, V> {
     phantom_value: PhantomData<V>,
 }
 
-impl<K: Bin, V: Bin> Iterator for Iter<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Iterator for Iter<K, V>
+{
     type Item = Result<(K, V)>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -365,7 +373,11 @@ impl<K: Bin, V: Bin> Iterator for Iter<K, V> {
     }
 }
 
-impl<K: Bin, V: Bin> DoubleEndedIterator for Iter<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > DoubleEndedIterator for Iter<K, V>
+{
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
             .next_back()
@@ -373,7 +385,11 @@ impl<K: Bin, V: Bin> DoubleEndedIterator for Iter<K, V> {
     }
 }
 
-impl<K: Bin, V: Bin> Iter<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Iter<K, V>
+{
     pub fn from_sled(iter: sled::Iter) -> Self {
         Iter {
             inner: iter,
@@ -407,7 +423,11 @@ pub struct Batch<K, V> {
     phantom_value: PhantomData<V>,
 }
 
-impl<K: Bin, V: Bin> Batch<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Batch<K, V>
+{
     pub fn insert(&mut self, key: K, value: V) {
         self.inner.insert(serialize(&key), serialize(&value));
     }
@@ -423,7 +443,11 @@ pub struct Subscriber<K, V> {
     phantom_value: PhantomData<V>,
 }
 
-impl<K: Bin, V: Bin> Subscriber<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Subscriber<K, V>
+{
     pub fn next_timeout(
         &mut self,
         timeout: core::time::Duration,
@@ -445,7 +469,11 @@ impl<K: Bin, V: Bin> Subscriber<K, V> {
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-impl<K: Bin + Unpin, V: Bin + Unpin> Future for Subscriber<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync + Unpin,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync + Unpin,
+    > Future for Subscriber<K, V>
+{
     type Output = Option<Event<K, V>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -455,7 +483,11 @@ impl<K: Bin + Unpin, V: Bin + Unpin> Future for Subscriber<K, V> {
     }
 }
 
-impl<K: Bin, V: Bin> Iterator for Subscriber<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Iterator for Subscriber<K, V>
+{
     type Item = Event<K, V>;
 
     fn next(&mut self) -> Option<Event<K, V>> {
@@ -463,12 +495,19 @@ impl<K: Bin, V: Bin> Iterator for Subscriber<K, V> {
     }
 }
 
-pub enum Event<K: Bin, V: Bin> {
+pub enum Event<
+    K: DeserializeOwned + Serialize + Clone + Send + Sync,
+    V: DeserializeOwned + Serialize + Clone + Send + Sync,
+> {
     Insert { key: K, value: V },
     Remove { key: K },
 }
 
-impl<K: Bin, V: Bin> Event<K, V> {
+impl<
+        K: DeserializeOwned + Serialize + Clone + Send + Sync,
+        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    > Event<K, V>
+{
     pub fn key(&self) -> &K {
         match self {
             Self::Insert { key, .. } | Self::Remove { key } => key,
