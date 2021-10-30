@@ -2,6 +2,8 @@
 //! Sled with Types instead of Bytes.
 //! This crate builds on top of `sled` and handles the (de)serialization
 //! of keys and values that are inserted into a sled::Tree for you.
+//! It also includes a convert feature, which allows you to convert any Tree
+//! into another Tree with different key and value types.
 //! It hasn't been tested extensively.
 //!
 //! Some info about sled:
@@ -41,6 +43,9 @@ use sled::{
 use std::marker::PhantomData;
 
 pub use sled;
+
+#[cfg(feature = "convert")]
+pub mod convert;
 
 // pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 
