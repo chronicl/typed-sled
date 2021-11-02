@@ -35,6 +35,7 @@
 /// ```
 use async_trait::async_trait;
 use core::iter::{DoubleEndedIterator, Iterator};
+use core::ops::{Bound, RangeBounds};
 use serde::{de::DeserializeOwned, Serialize};
 use sled::{
     transaction::{ConflictableTransactionResult, TransactionResult, TransactionalTree},
@@ -277,11 +278,40 @@ impl<
 
     /// Create a double-ended iterator over tuples of keys and values,
     /// where the keys fall within the specified range.
-    pub fn range<R: core::ops::RangeBounds<K>>(&self, range: R) -> Iter<K, V> {
-        Iter::from_sled(
-            self.inner
-                .range(serialize(&range.start_bound())..serialize(&range.end_bound())),
-        )
+    pub fn range<R: RangeBounds<K>>(&self, range: R) -> Iter<K, V>
+    where
+        K: std::fmt::Debug,
+    {
+        match (range.start_bound(), range.end_bound()) {
+            (Bound::Unbounded, Bound::Unbounded) => {
+                return Iter::from_sled(self.inner.range::<&[u8], _>(..))
+            }
+            (Bound::Unbounded, Bound::Excluded(b)) => {
+                return Iter::from_sled(self.inner.range(..serialize(b)))
+            }
+            (Bound::Unbounded, Bound::Included(b)) => {
+                return Iter::from_sled(self.inner.range(..=serialize(b)))
+            }
+            // FIX: This is not excluding lower bound.
+            (Bound::Excluded(b), Bound::Unbounded) => {
+                return Iter::from_sled(self.inner.range(serialize(b)..))
+            }
+            (Bound::Excluded(b), Bound::Excluded(bb)) => {
+                return Iter::from_sled(self.inner.range(serialize(b)..serialize(bb)))
+            }
+            (Bound::Excluded(b), Bound::Included(bb)) => {
+                return Iter::from_sled(self.inner.range(serialize(b)..=serialize(bb)))
+            }
+            (Bound::Included(b), Bound::Unbounded) => {
+                return Iter::from_sled(self.inner.range(serialize(b)..))
+            }
+            (Bound::Included(b), Bound::Excluded(bb)) => {
+                return Iter::from_sled(self.inner.range(serialize(b)..serialize(bb)))
+            }
+            (Bound::Included(b), Bound::Included(bb)) => {
+                return Iter::from_sled(self.inner.range(serialize(b)..=serialize(bb)))
+            }
+        }
     }
 
     /// Create an iterator over tuples of keys and values,
@@ -544,4 +574,25 @@ where
     T: serde::Serialize,
 {
     bincode::serialize(value).unwrap()
+}
+
+#[test]
+fn test_range() {
+    let config = sled::Config::new().temporary(true);
+    let db = config.open().unwrap();
+
+    let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+
+    tree.insert(&1, &2).unwrap();
+    tree.insert(&3, &4).unwrap();
+    tree.insert(&6, &2).unwrap();
+    tree.insert(&10, &2).unwrap();
+    tree.insert(&15, &2).unwrap();
+    tree.flush().unwrap();
+
+    println!("starting");
+
+    for res in tree.range(6..11) {
+        println!("{:?}", res);
+    }
 }
