@@ -1,7 +1,7 @@
 # Sled with Types instead of Bytes
 [![API](https://docs.rs/typed-sled/badge.svg)](https://docs.rs/typed-sled)
 
-This crate builds on top of ['sled'] and it's api is identical, except that it uses types in all places where sled would use bytes or it's IVec type.
+This crate builds on top of ['sled'] and it's api is identical, except that it uses types in all places where sled would use bytes or it's IVec type. Types are binary encoded using [bincode](https://docs.rs/bincode/1.3.3/bincode/index.html).
 
 ## Example
 
