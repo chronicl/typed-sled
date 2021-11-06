@@ -63,6 +63,7 @@ pub mod convert;
 /// tree.insert("Larry", Animal::Dog);
 /// # Ok(()) }
 /// ```
+#[derive(Clone, Debug)]
 pub struct Tree<K, V> {
     inner: sled::Tree,
     key: PhantomData<K>,
