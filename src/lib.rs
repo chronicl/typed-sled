@@ -576,23 +576,52 @@ where
     bincode::serialize(value).unwrap()
 }
 
-#[test]
-fn test_range() {
-    let config = sled::Config::new().temporary(true);
-    let db = config.open().unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+    #[test]
+    fn test_range() {
+        let config = sled::Config::new().temporary(true);
+        let db = config.open().unwrap();
 
-    tree.insert(&1, &2).unwrap();
-    tree.insert(&3, &4).unwrap();
-    tree.insert(&6, &2).unwrap();
-    tree.insert(&10, &2).unwrap();
-    tree.insert(&15, &2).unwrap();
-    tree.flush().unwrap();
+        let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
 
-    println!("starting");
+        tree.insert(&1, &2).unwrap();
+        tree.insert(&3, &4).unwrap();
+        tree.insert(&6, &2).unwrap();
+        tree.insert(&10, &2).unwrap();
+        tree.insert(&15, &2).unwrap();
+        tree.flush().unwrap();
 
-    for res in tree.range(6..11) {
-        println!("{:?}", res);
+        println!("starting");
+
+        for res in tree.range(6..11) {
+            println!("{:?}", res);
+        }
+    }
+
+    #[test]
+    fn test_cas() {
+        let config = sled::Config::new().temporary(true);
+        let db = config.open().unwrap();
+
+        let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+
+        let current = 2;
+        tree.insert(&1, &current).unwrap();
+        let expected = 3;
+        let proposed = 4;
+        let res = tree
+            .compare_and_swap(&1, Some(&expected), Some(&proposed))
+            .expect("db failure");
+
+        assert_eq!(
+            res,
+            Err(CompareAndSwapError {
+                current: Some(current),
+                proposed: Some(proposed),
+            }),
+        );
     }
 }
