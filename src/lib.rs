@@ -566,14 +566,14 @@ pub fn deserialize<'a, T>(bytes: &'a [u8]) -> T
 where
     T: serde::de::Deserialize<'a>,
 {
-    bincode::deserialize(bytes).unwrap()
+    bincode::deserialize(bytes).expect("deserialization failed, did the type serialized change?")
 }
 
 pub fn serialize<T>(value: &T) -> Vec<u8>
 where
     T: serde::Serialize,
 {
-    bincode::serialize(value).unwrap()
+    bincode::serialize(value).expect("serialization failed, did the type serialized change?")
 }
 
 #[test]
