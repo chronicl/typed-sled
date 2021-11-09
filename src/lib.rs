@@ -34,12 +34,13 @@
 /// # Ok(()) }
 /// ```
 use async_trait::async_trait;
+use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
 use serde::{de::DeserializeOwned, Serialize};
 use sled::{
     transaction::{ConflictableTransactionResult, TransactionResult, TransactionalTree},
-    CompareAndSwapError, IVec, Result,
+    IVec, Result,
 };
 use std::marker::PhantomData;
 
@@ -69,6 +70,24 @@ pub struct Tree<K, V> {
     key: PhantomData<K>,
     value: PhantomData<V>,
 }
+
+/// Compare and swap error.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CompareAndSwapError<V> {
+    /// The current value which caused your CAS to fail.
+    pub current: Option<V>,
+    /// Returned value that was proposed unsuccessfully.
+    pub proposed: Option<V>,
+}
+
+impl<V> fmt::Display for CompareAndSwapError<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Compare and swap conflict")
+    }
+}
+
+// implemented like this in the sled source
+impl<V: std::fmt::Debug> std::error::Error for CompareAndSwapError<V> {}
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
 impl<
@@ -140,12 +159,19 @@ impl<
         key: &K,
         old: Option<&V>,
         new: Option<&V>,
-    ) -> Result<core::result::Result<(), CompareAndSwapError>> {
-        self.inner.compare_and_swap(
-            serialize(key),
-            old.map(|old| serialize(old)),
-            new.map(|new| serialize(new)),
-        )
+    ) -> Result<core::result::Result<(), CompareAndSwapError<V>>> {
+        self.inner
+            .compare_and_swap(
+                serialize(key),
+                old.map(|old| serialize(old)),
+                new.map(|new| serialize(new)),
+            )
+            .map(|cas_res| {
+                cas_res.map_err(|cas_err| CompareAndSwapError {
+                    current: cas_err.current.as_ref().map(|b| deserialize(b)),
+                    proposed: cas_err.proposed.as_ref().map(|b| deserialize(b)),
+                })
+            })
     }
 
     /// Fetch the value, apply a function to it and return the result.
@@ -577,23 +603,52 @@ where
     bincode::serialize(value).unwrap()
 }
 
-#[test]
-fn test_range() {
-    let config = sled::Config::new().temporary(true);
-    let db = config.open().unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+    #[test]
+    fn test_range() {
+        let config = sled::Config::new().temporary(true);
+        let db = config.open().unwrap();
 
-    tree.insert(&1, &2).unwrap();
-    tree.insert(&3, &4).unwrap();
-    tree.insert(&6, &2).unwrap();
-    tree.insert(&10, &2).unwrap();
-    tree.insert(&15, &2).unwrap();
-    tree.flush().unwrap();
+        let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
 
-    println!("starting");
+        tree.insert(&1, &2).unwrap();
+        tree.insert(&3, &4).unwrap();
+        tree.insert(&6, &2).unwrap();
+        tree.insert(&10, &2).unwrap();
+        tree.insert(&15, &2).unwrap();
+        tree.flush().unwrap();
 
-    for res in tree.range(6..11) {
-        println!("{:?}", res);
+        println!("starting");
+
+        for res in tree.range(6..11) {
+            println!("{:?}", res);
+        }
+    }
+
+    #[test]
+    fn test_cas() {
+        let config = sled::Config::new().temporary(true);
+        let db = config.open().unwrap();
+
+        let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+
+        let current = 2;
+        tree.insert(&1, &current).unwrap();
+        let expected = 3;
+        let proposed = 4;
+        let res = tree
+            .compare_and_swap(&1, Some(&expected), Some(&proposed))
+            .expect("db failure");
+
+        assert_eq!(
+            res,
+            Err(CompareAndSwapError {
+                current: Some(current),
+                proposed: Some(proposed),
+            }),
+        );
     }
 }
