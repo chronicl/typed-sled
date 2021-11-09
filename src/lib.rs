@@ -34,12 +34,13 @@
 /// # Ok(()) }
 /// ```
 use async_trait::async_trait;
+use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
 use serde::{de::DeserializeOwned, Serialize};
 use sled::{
     transaction::{ConflictableTransactionResult, TransactionResult, TransactionalTree},
-    CompareAndSwapError, IVec, Result,
+    IVec, Result,
 };
 use std::marker::PhantomData;
 
@@ -68,6 +69,22 @@ pub struct Tree<K, V> {
     key: PhantomData<K>,
     value: PhantomData<V>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CompareAndSwapError<V> {
+    pub current: Option<V>,
+    pub proposed: Option<V>,
+    value: PhantomData<V>,
+}
+
+impl<V> fmt::Display for CompareAndSwapError<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Compare and swap conflict")
+    }
+}
+
+// implemented like this in the sled source
+impl<V: std::fmt::Debug> std::error::Error for CompareAndSwapError<V> {}
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
 impl<
@@ -139,12 +156,20 @@ impl<
         key: &K,
         old: Option<&V>,
         new: Option<&V>,
-    ) -> Result<core::result::Result<(), CompareAndSwapError>> {
-        self.inner.compare_and_swap(
-            serialize(key),
-            old.map(|old| serialize(old)),
-            new.map(|new| serialize(new)),
-        )
+    ) -> Result<core::result::Result<(), CompareAndSwapError<V>>> {
+        self.inner
+            .compare_and_swap(
+                serialize(key),
+                old.map(|old| serialize(old)),
+                new.map(|new| serialize(new)),
+            )
+            .map(|cas_res| {
+                cas_res.map_err(|cas_err| CompareAndSwapError {
+                    current: cas_err.current.as_ref().map(|b| deserialize(b)),
+                    proposed: cas_err.proposed.as_ref().map(|b| deserialize(b)),
+                    value: PhantomData,
+                })
+            })
     }
 
     /// Fetch the value, apply a function to it and return the result.
@@ -621,6 +646,7 @@ mod tests {
             Err(CompareAndSwapError {
                 current: Some(current),
                 proposed: Some(proposed),
+                value: PhantomData,
             }),
         );
     }
