@@ -25,7 +25,7 @@
 /// let db: sled::Db = sled::open("db")?;
 ///
 /// // The id is used by sled to identify which Tree in the database (db) to open.
-/// let animals = typed_sled::Tree::<String, Animal>::init(&db, "unique_id");
+/// let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
 ///
 /// let larry = "Larry".to_string();
 /// animals.insert(&larry, &Animal::Dog)?;
@@ -66,7 +66,7 @@ pub mod convert;
 ///
 /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let db: sled::Db = sled::open("db")?;
-/// let animals = typed_sled::Tree::<String, Animal>::init(&db, "animals");
+/// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
 /// animals.insert(&"Larry".to_string(), &Animal::Dog);
 /// # Ok(()) }
 /// ```
@@ -114,11 +114,11 @@ impl<
     ///
     /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let db: sled::Db = sled::open("db")?;
-    /// let animals = typed_sled::Tree::<String, Animal>::init(&db, "animals");
+    /// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
     /// animals.insert(&"Larry".to_string(), &Animal::Dog)?;
     /// # Ok(()) }
     /// ```
-    pub fn init<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
+    pub fn open<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         Self {
             inner: db.open_tree(id.as_ref()).unwrap(),
             key: PhantomData,
@@ -625,7 +625,7 @@ mod tests {
         let config = sled::Config::new().temporary(true);
         let db = config.open().unwrap();
 
-        let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+        let tree: Tree<u32, u32> = Tree::open(&db, "test_tree");
 
         tree.insert(&1, &2).unwrap();
         tree.insert(&3, &4).unwrap();
@@ -646,7 +646,7 @@ mod tests {
         let config = sled::Config::new().temporary(true);
         let db = config.open().unwrap();
 
-        let tree: Tree<u32, u32> = Tree::init(&db, "test_tree");
+        let tree: Tree<u32, u32> = Tree::open(&db, "test_tree");
 
         let current = 2;
         tree.insert(&1, &current).unwrap();

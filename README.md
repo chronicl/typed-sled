@@ -10,7 +10,7 @@ This crate builds on top of [sled] and it's api is identical, except that it use
     let db: sled::Db = sled::open("db")?;
 
     // The id is used by sled to identify which Tree in the database (db) to open.
-    let animals = typed_sled::Tree::<String, Animal>::init(&db, "unique_id");
+    let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
 
     let larry = "Larry".to_string();
     animals.insert(&larry, &Animal::Dog)?;

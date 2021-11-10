@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = config.open().unwrap();
 
     // The id is used by sled to identify which Tree in the database (db) to open.
-    let animals = typed_sled::Tree::<String, Animal>::init(&db, "unique_id");
+    let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
 
     let larry = "Larry".to_string();
     animals.insert(&larry, &Animal::Dog)?;
