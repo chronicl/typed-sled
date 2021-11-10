@@ -621,10 +621,10 @@ mod tests {
         tree.insert(&15, &2).unwrap();
         tree.flush().unwrap();
 
-        println!("starting");
+        let expect_results = [(6, 2), (10, 2)];
 
-        for res in tree.range(6..11) {
-            println!("{:?}", res);
+        for (i, result) in tree.range(6..11).enumerate() {
+            assert_eq!(result.unwrap(), expect_results[i]);
         }
     }
 
