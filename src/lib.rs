@@ -15,22 +15,21 @@
 //!
 //! # Example
 /// ```
-/// struct Wrapper {
-///     inner: sled::Tree,
-/// }
-
-/// impl Tree for Wrapper {
-///     type Key = u64;
-///     type Value = String;
-
-///     pub fn tree(&self) -> &sled::Tree {
-///         &self.inner
-///     }
-/// }
+/// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// # enum Animal {
+/// #     Dog,
+/// #    Cat,
+/// # }
+///
 /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let db: sled::Db = sled::open("db")?;
-/// let tree: sled::Tree = Wrapper{ inner: db.open_tree(b"tree for Wrapper")? };
-/// tree.insert(100, "one hundred");
+///
+/// // The id is used by sled to identify which Tree in the database (db) to open.
+/// let animals = typed_sled::Tree::<String, Animal>::init(&db, "unique_id");
+///
+/// let larry = "Larry".to_string();
+/// animals.insert(&larry, &Animal::Dog)?;
+/// assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
 /// # Ok(()) }
 /// ```
 use async_trait::async_trait;
@@ -58,10 +57,17 @@ pub mod convert;
 /// # Example
 ///
 /// ```
+/// # use serde::{Serialize, Deserialize};
+/// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// # enum Animal {
+/// #     Dog,
+/// #    Cat,
+/// # }
+///
 /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let db: sled::Db = sled::open("db")?;
-/// let animals = typed_sled::Tree<String, Animal>::init(&db, "animals")
-/// tree.insert("Larry", Animal::Dog);
+/// let animals = typed_sled::Tree::<String, Animal>::init(&db, "animals");
+/// animals.insert(&"Larry".to_string(), &Animal::Dog);
 /// # Ok(()) }
 /// ```
 #[derive(Clone, Debug)]
@@ -99,10 +105,17 @@ impl<
     /// # Example
     ///
     /// ```
+    /// # use serde::{Serialize, Deserialize};
+    /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// # enum Animal {
+    /// #     Dog,
+    /// #    Cat,
+    /// # }
+    ///
     /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let db: sled::Db = sled::open("db")?;
-    /// let animals = typed_sled::Tree<String, Animal>::init(&db, "animals")
-    /// tree.insert("Larry", Animal::Dog);
+    /// let animals = typed_sled::Tree::<String, Animal>::init(&db, "animals");
+    /// animals.insert(&"Larry".to_string(), &Animal::Dog)?;
     /// # Ok(()) }
     /// ```
     pub fn init<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
@@ -149,7 +162,7 @@ impl<
             .map(|opt| opt.map(|v| deserialize(&v)))
     }
 
-    ///     Compare and swap. Capable of unique creation, conditional modification, or deletion. If old is None, this will only set the value if it doesn't exist yet. If new is None, will delete the value if old is correct. If both old and new are Some, will modify the value if old is correct.
+    /// Compare and swap. Capable of unique creation, conditional modification, or deletion. If old is None, this will only set the value if it doesn't exist yet. If new is None, will delete the value if old is correct. If both old and new are Some, will modify the value if old is correct.
     ///
     /// It returns Ok(Ok(())) if operation finishes successfully.
     ///
