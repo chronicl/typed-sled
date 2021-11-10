@@ -2,7 +2,7 @@
 
 [![API](https://docs.rs/typed-sled/badge.svg)](https://docs.rs/typed-sled)
 
-This crate builds on top of ['sled'] and it's api is identical, except that it uses types in all places where sled would use bytes or it's IVec type. Types are binary encoded using [bincode](https://docs.rs/bincode/1.3.3/bincode/index.html).
+This crate builds on top of [sled] and it's api is identical, except that it uses types in all places where sled would use bytes or it's IVec type. Types are binary encoded using [bincode](https://docs.rs/bincode/1.3.3/bincode/index.html).
 
 ## Example
 
@@ -20,4 +20,4 @@ This crate builds on top of ['sled'] and it's api is identical, except that it u
 
 Not tested throughoutly, in particular the Subscriber api might not be implemented correctly.
 
-['sled']: https://github.com/spacejam/sled
+[sled]: https://github.com/spacejam/sled
