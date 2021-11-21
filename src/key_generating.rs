@@ -1,4 +1,4 @@
-use crate::{Batch, Tree};
+use crate::{Batch, Tree, KV};
 use serde::{de::DeserializeOwned, Serialize};
 use sled::Result;
 use std::ops::Deref;
@@ -14,9 +14,7 @@ pub struct KeyGeneratingTree<KeyGenerator: KeyGenerating, V> {
     inner: Tree<KeyGenerator::Key, V>,
 }
 
-impl<KeyGenerator: KeyGenerating, V: DeserializeOwned + Serialize + Send + Sync>
-    KeyGeneratingTree<KeyGenerator, V>
-{
+impl<KeyGenerator: KeyGenerating, V: KV> KeyGeneratingTree<KeyGenerator, V> {
     pub fn open<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         let tree = Tree::open(db, id);
         let key_generator = KeyGenerator::initialize(&tree);
@@ -50,9 +48,7 @@ impl<KeyGenerator: KeyGenerating, V: DeserializeOwned + Serialize + Send + Sync>
     }
 }
 
-impl<KeyGenerator: KeyGenerating, V: DeserializeOwned + Serialize + Send + Sync> Deref
-    for KeyGeneratingTree<KeyGenerator, V>
-{
+impl<KeyGenerator: KeyGenerating, V: KV> Deref for KeyGeneratingTree<KeyGenerator, V> {
     type Target = Tree<KeyGenerator::Key, V>;
 
     fn deref(&self) -> &Self::Target {
@@ -65,10 +61,9 @@ impl<KeyGenerator: KeyGenerating, V: DeserializeOwned + Serialize + Send + Sync>
 ///
 /// See CounterTree for a specific example of how to use this trait.
 pub trait KeyGenerating {
-    type Key: DeserializeOwned + Serialize + Send + Sync;
+    type Key: KV;
 
-    fn initialize<V: DeserializeOwned + Serialize + Send + Sync>(tree: &Tree<Self::Key, V>)
-        -> Self;
+    fn initialize<V: KV>(tree: &Tree<Self::Key, V>) -> Self;
 
     fn next_key(&self) -> Self::Key;
 }
@@ -79,12 +74,8 @@ pub struct KeyGeneratingBatch<'a, KeyGenerator: KeyGenerating, V> {
     inner: Batch<KeyGenerator::Key, V>,
 }
 
-impl<
-        'a,
-        KeyGenerator: KeyGenerating<Key = K>,
-        K: DeserializeOwned + Serialize + Send + Sync,
-        V: DeserializeOwned + Serialize + Send + Sync,
-    > KeyGeneratingBatch<'a, KeyGenerator, V>
+impl<'a, KeyGenerator: KeyGenerating<Key = K>, K: KV, V: KV>
+    KeyGeneratingBatch<'a, KeyGenerator, V>
 {
     pub fn insert(&mut self, value: &V) {
         self.inner.insert(&self.key_generator.next_key(), value);
@@ -104,9 +95,7 @@ pub struct Counter(AtomicU64);
 impl KeyGenerating for Counter {
     type Key = u64;
 
-    fn initialize<Value: DeserializeOwned + Serialize + Send + Sync>(
-        tree: &Tree<Self::Key, Value>,
-    ) -> Self {
+    fn initialize<Value: KV>(tree: &Tree<Self::Key, Value>) -> Self {
         if let Some((key, _)) = tree
             .last()
             .expect("KeyGenerating Counter failed to access sled Tree.")
