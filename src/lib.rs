@@ -492,7 +492,7 @@ impl<
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Batch<K, V> {
     inner: sled::Batch,
     phantom_key: PhantomData<K>,
@@ -504,12 +504,23 @@ impl<
         V: DeserializeOwned + Serialize + Clone + Send + Sync,
     > Batch<K, V>
 {
-    pub fn insert(&mut self, key: K, value: V) {
-        self.inner.insert(serialize(&key), serialize(&value));
+    pub fn insert(&mut self, key: &K, value: &V) {
+        self.inner.insert(serialize(key), serialize(value));
     }
 
-    pub fn remove(&mut self, key: K) {
-        self.inner.remove(serialize(&key))
+    pub fn remove(&mut self, key: &K) {
+        self.inner.remove(serialize(key))
+    }
+}
+
+// Implementing Default manually to not require K and V to implement Default.
+impl<K, V> Default for Batch<K, V> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+            phantom_key: PhantomData,
+            phantom_value: PhantomData,
+        }
     }
 }
 
