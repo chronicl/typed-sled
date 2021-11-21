@@ -1,4 +1,3 @@
-// #![feature(trait_alias)]
 //! Sled with Types instead of Bytes.
 //! This crate builds on top of `sled` and handles the (de)serialization
 //! of keys and values that are inserted into a sled::Tree for you.
@@ -32,7 +31,6 @@
 /// assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
 /// # Ok(()) }
 /// ```
-use async_trait::async_trait;
 use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
