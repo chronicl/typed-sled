@@ -38,7 +38,7 @@ use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
 use serde::{de::DeserializeOwned, Serialize};
 use sled::{
-    transaction::{ConflictableTransactionResult, TransactionResult, TransactionalTree},
+    transaction::{ConflictableTransactionResult, TransactionResult},
     IVec, Result,
 };
 use std::marker::PhantomData;
@@ -133,13 +133,14 @@ impl<
             .map(|opt| opt.map(|old_value| deserialize(&old_value)))
     }
 
-    /// Perform a multi-key serializable transaction.
-    pub fn transaction<F, A, E>(&self, f: F) -> TransactionResult<A, E>
-    where
-        F: Fn(&TransactionalTree) -> ConflictableTransactionResult<A, E>,
-    {
-        self.inner.transaction(f)
-    }
+    // TODO: Implement using own TransactionalTree type wrapping sled::TransactionalTree
+    // Perform a multi-key serializable transaction.
+    // pub fn transaction<F, A, E>(&self, f: F) -> TransactionResult<A, E>
+    // where
+    //     F: Fn(&TransactionalTree) -> ConflictableTransactionResult<A, E>,
+    // {
+    //     self.inner.transaction(f)
+    // }
 
     /// Create a new batched update that can be atomically applied.
     ///
