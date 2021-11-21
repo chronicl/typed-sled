@@ -1,5 +1,5 @@
 use crate::{Batch, Tree, KV};
-use serde::{de::DeserializeOwned, Serialize};
+use sled::transaction::{ConflictableTransactionResult, TransactionResult};
 use sled::Result;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,15 +9,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 /// See CounterTree for a specific example of how to use this type.
 #[derive(Clone, Debug)]
-pub struct KeyGeneratingTree<KeyGenerator: KeyGenerating, V> {
-    key_generator: KeyGenerator,
-    inner: Tree<KeyGenerator::Key, V>,
+pub struct KeyGeneratingTree<KG: KeyGenerating, V> {
+    key_generator: KG,
+    inner: Tree<KG::Key, V>,
 }
 
-impl<KeyGenerator: KeyGenerating, V: KV> KeyGeneratingTree<KeyGenerator, V> {
+impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
     pub fn open<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         let tree = Tree::open(db, id);
-        let key_generator = KeyGenerator::initialize(&tree);
+        let key_generator = KG::initialize(&tree);
 
         Self {
             key_generator,
@@ -26,30 +26,42 @@ impl<KeyGenerator: KeyGenerating, V: KV> KeyGeneratingTree<KeyGenerator, V> {
     }
 
     /// Insert a generated key to a new value, returning the key and the last value if it was set.
-    pub fn insert(&self, value: &V) -> Result<(KeyGenerator::Key, Option<V>)> {
+    pub fn insert(&self, value: &V) -> Result<(KG::Key, Option<V>)> {
         let key = self.key_generator.next_key();
         let res = self.inner.insert(&key, value);
         res.map(|opt_v| (key, opt_v))
     }
 
-    pub fn key_generator(&self) -> &KeyGenerator {
+    pub fn transaction<F, A, E>(&self, f: F) -> TransactionResult<A, E>
+    where
+        F: Fn(&KeyGeneratingTransactionalTree<KG, V>) -> ConflictableTransactionResult<A, E>,
+    {
+        self.inner.transaction(|transactional_tree| {
+            f(&KeyGeneratingTransactionalTree {
+                key_generator: self.key_generator(),
+                inner: transactional_tree,
+            })
+        })
+    }
+
+    pub fn key_generator(&self) -> &KG {
         &self.key_generator
     }
 
-    pub fn new_batch(&self) -> KeyGeneratingBatch<KeyGenerator, V> {
+    pub fn new_batch(&self) -> KeyGeneratingBatch<KG, V> {
         KeyGeneratingBatch {
             key_generator: self.key_generator(),
             inner: Batch::default(),
         }
     }
 
-    pub fn apply_batch(&self, batch: KeyGeneratingBatch<KeyGenerator, V>) -> Result<()> {
+    pub fn apply_batch(&self, batch: KeyGeneratingBatch<KG, V>) -> Result<()> {
         self.inner.apply_batch(batch.inner)
     }
 }
 
-impl<KeyGenerator: KeyGenerating, V: KV> Deref for KeyGeneratingTree<KeyGenerator, V> {
-    type Target = Tree<KeyGenerator::Key, V>;
+impl<KG: KeyGenerating, V: KV> Deref for KeyGeneratingTree<KG, V> {
+    type Target = Tree<KG::Key, V>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -69,14 +81,12 @@ pub trait KeyGenerating {
 }
 
 #[derive(Clone, Debug)]
-pub struct KeyGeneratingBatch<'a, KeyGenerator: KeyGenerating, V> {
-    key_generator: &'a KeyGenerator,
-    inner: Batch<KeyGenerator::Key, V>,
+pub struct KeyGeneratingBatch<'a, KG: KeyGenerating, V> {
+    key_generator: &'a KG,
+    inner: Batch<KG::Key, V>,
 }
 
-impl<'a, KeyGenerator: KeyGenerating<Key = K>, K: KV, V: KV>
-    KeyGeneratingBatch<'a, KeyGenerator, V>
-{
+impl<'a, KG: KeyGenerating<Key = K>, K: KV, V: KV> KeyGeneratingBatch<'a, KG, V> {
     pub fn insert(&mut self, value: &V) {
         self.inner.insert(&self.key_generator.next_key(), value);
     }
@@ -108,5 +118,35 @@ impl KeyGenerating for Counter {
 
     fn next_key(&self) -> Self::Key {
         self.0.fetch_add(1, Ordering::Relaxed)
+    }
+}
+
+pub struct KeyGeneratingTransactionalTree<'a, KG: KeyGenerating, V> {
+    key_generator: &'a KG,
+    inner: &'a crate::TransactionalTree<'a, KG::Key, V>,
+}
+
+impl<'a, KG: KeyGenerating, V: KV> KeyGeneratingTransactionalTree<'a, KG, V> {
+    pub fn insert(
+        &self,
+        key: &KG::Key,
+        value: &V,
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+        self.inner.insert(&self.key_generator.next_key(), value)
+    }
+
+    pub fn apply_batch(
+        &self,
+        batch: &KeyGeneratingBatch<KG, V>,
+    ) -> std::result::Result<(), sled::transaction::UnabortableTransactionError> {
+        self.inner.apply_batch(&batch.inner)
+    }
+}
+
+impl<'a, KG: KeyGenerating, V> Deref for KeyGeneratingTransactionalTree<'a, KG, V> {
+    type Target = crate::TransactionalTree<'a, KG::Key, V>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
