@@ -295,6 +295,7 @@ impl<
             .map(|res| res.map(|old_v| deserialize(&old_v)))
     }
 
+    // TODO: implement using own MergeOperator trait
     /// Sets a merge operator for use with the `merge` function.
     ///
     /// Merge state directly into a given key's value using the
@@ -307,9 +308,9 @@ impl<
     ///
     /// Calling `merge` will panic if no merge operator has been
     /// configured.
-    pub fn set_merge_operator(&self, merge_operator: impl sled::MergeOperator + 'static) {
-        self.inner.set_merge_operator(merge_operator);
-    }
+    // pub fn set_merge_operator(&self, merge_operator: impl sled::MergeOperator + 'static) {
+    //     self.inner.set_merge_operator(merge_operator);
+    // }
 
     /// Create a double-ended iterator over the tuples of keys and
     /// values in this tree.
