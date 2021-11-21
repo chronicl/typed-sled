@@ -97,8 +97,8 @@ impl<V: std::fmt::Debug> std::error::Error for CompareAndSwapError<V> {}
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Tree<K, V>
 {
     /// Initialize a typed tree. The id identifies the tree to be opened from the db.
@@ -430,8 +430,8 @@ pub struct Iter<K, V> {
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Iterator for Iter<K, V>
 {
     type Item = Result<(K, V)>;
@@ -450,8 +450,8 @@ impl<
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > DoubleEndedIterator for Iter<K, V>
 {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -462,8 +462,8 @@ impl<
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Iter<K, V>
 {
     pub fn from_sled(iter: sled::Iter) -> Self {
@@ -500,8 +500,8 @@ pub struct Batch<K, V> {
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Batch<K, V>
 {
     pub fn insert(&mut self, key: &K, value: &V) {
@@ -531,8 +531,8 @@ pub struct Subscriber<K, V> {
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Subscriber<K, V>
 {
     pub fn next_timeout(
@@ -557,8 +557,8 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync + Unpin,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync + Unpin,
+        K: DeserializeOwned + Serialize + Send + Sync + Unpin,
+        V: DeserializeOwned + Serialize + Send + Sync + Unpin,
     > Future for Subscriber<K, V>
 {
     type Output = Option<Event<K, V>>;
@@ -571,8 +571,8 @@ impl<
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Iterator for Subscriber<K, V>
 {
     type Item = Event<K, V>;
@@ -583,16 +583,16 @@ impl<
 }
 
 pub enum Event<
-    K: DeserializeOwned + Serialize + Clone + Send + Sync,
-    V: DeserializeOwned + Serialize + Clone + Send + Sync,
+    K: DeserializeOwned + Serialize + Send + Sync,
+    V: DeserializeOwned + Serialize + Send + Sync,
 > {
     Insert { key: K, value: V },
     Remove { key: K },
 }
 
 impl<
-        K: DeserializeOwned + Serialize + Clone + Send + Sync,
-        V: DeserializeOwned + Serialize + Clone + Send + Sync,
+        K: DeserializeOwned + Serialize + Send + Sync,
+        V: DeserializeOwned + Serialize + Send + Sync,
     > Event<K, V>
 {
     pub fn key(&self) -> &K {
