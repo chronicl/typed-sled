@@ -615,14 +615,14 @@ impl<
     }
 }
 
-pub fn deserialize<'a, T>(bytes: &'a [u8]) -> T
+pub(crate) fn deserialize<'a, T>(bytes: &'a [u8]) -> T
 where
     T: serde::de::Deserialize<'a>,
 {
     bincode::deserialize(bytes).expect("deserialization failed, did the type serialized change?")
 }
 
-pub fn serialize<T>(value: &T) -> Vec<u8>
+pub(crate) fn serialize<T>(value: &T) -> Vec<u8>
 where
     T: serde::Serialize,
 {
