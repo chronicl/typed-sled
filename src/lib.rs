@@ -135,14 +135,19 @@ impl<K: KV, V: KV> Tree<K, V> {
             .map(|opt| opt.map(|old_value| deserialize(&old_value)))
     }
 
-    // TODO: Implement using own TransactionalTree type wrapping sled::TransactionalTree
-    // Perform a multi-key serializable transaction.
-    // pub fn transaction<F, A, E>(&self, f: F) -> TransactionResult<A, E>
-    // where
-    //     F: Fn(&TransactionalTree) -> ConflictableTransactionResult<A, E>,
-    // {
-    //     self.inner.transaction(f)
-    // }
+    /// Perform a multi-key serializable transaction.
+    pub fn transaction<F, A, E>(&self, f: F) -> TransactionResult<A, E>
+    where
+        F: Fn(&TransactionalTree<K, V>) -> ConflictableTransactionResult<A, E>,
+    {
+        self.inner.transaction(|sled_transactional_tree| {
+            f(&TransactionalTree {
+                inner: sled_transactional_tree,
+                phantom_key: PhantomData,
+                phantom_value: PhantomData,
+            })
+        })
+    }
 
     /// Create a new batched update that can be atomically applied.
     ///
@@ -310,9 +315,17 @@ impl<K: KV, V: KV> Tree<K, V> {
     ///
     /// Calling `merge` will panic if no merge operator has been
     /// configured.
-    // pub fn set_merge_operator(&self, merge_operator: impl sled::MergeOperator + 'static) {
-    //     self.inner.set_merge_operator(merge_operator);
-    // }
+    pub fn set_merge_operator(&self, merge_operator: impl MergeOperator<K, V> + 'static) {
+        self.inner
+            .set_merge_operator(move |key: &[u8], old_v: Option<&[u8]>, value: &[u8]| {
+                let opt_v = merge_operator(
+                    deserialize(key),
+                    old_v.map(|v| deserialize(v)),
+                    deserialize(value),
+                );
+                opt_v.map(|v| serialize(&v))
+            });
+    }
 
     /// Create a double-ended iterator over the tuples of keys and
     /// values in this tree.
@@ -423,6 +436,59 @@ impl<K: KV, V: KV> Tree<K, V> {
     /// for the duration of the entire scan.
     pub fn checksum(&self) -> Result<u32> {
         self.inner.checksum()
+    }
+}
+
+pub trait MergeOperator<K, V>: Fn(K, Option<V>, V) -> Option<V> {}
+
+pub struct TransactionalTree<'a, K, V> {
+    inner: &'a sled::transaction::TransactionalTree,
+    phantom_key: PhantomData<K>,
+    phantom_value: PhantomData<V>,
+}
+
+impl<'a, K: KV, V: KV> TransactionalTree<'a, K, V> {
+    pub fn insert(
+        &self,
+        key: &K,
+        value: &V,
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+        self.inner
+            .insert(serialize(key), serialize(value))
+            .map(|opt| opt.map(|v| deserialize(&v)))
+    }
+
+    pub fn remove(
+        &self,
+        key: &K,
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+        self.inner
+            .remove(serialize(key))
+            .map(|opt| opt.map(|v| deserialize(&v)))
+    }
+
+    pub fn get(
+        &self,
+        key: &K,
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+        self.inner
+            .get(serialize(key))
+            .map(|opt| opt.map(|v| deserialize(&v)))
+    }
+
+    pub fn apply_batch(
+        &self,
+        batch: &Batch<K, V>,
+    ) -> std::result::Result<(), sled::transaction::UnabortableTransactionError> {
+        self.inner.apply_batch(&batch.inner)
+    }
+
+    pub fn flush(&self) {
+        self.inner.flush()
+    }
+
+    pub fn generate_id(&self) -> Result<u64> {
+        self.inner.generate_id()
     }
 }
 
