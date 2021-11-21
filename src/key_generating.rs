@@ -129,7 +129,6 @@ pub struct KeyGeneratingTransactionalTree<'a, KG: KeyGenerating, V> {
 impl<'a, KG: KeyGenerating, V: KV> KeyGeneratingTransactionalTree<'a, KG, V> {
     pub fn insert(
         &self,
-        key: &KG::Key,
         value: &V,
     ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
         self.inner.insert(&self.key_generator.next_key(), value)

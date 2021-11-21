@@ -7,19 +7,19 @@ use std::convert::Into;
 /// Right now this function is storing the entire old tree in memory
 /// so if the old tree contains a large amount of data, the conversion
 /// will not be successful. It's still a ToDo to fix this.
-pub fn convert<K_OLD, V_OLD, K_NEW, V_NEW>(db: &sled::Db, tree: &str)
+pub fn convert<KOld, VOld, KNew, VNew>(db: &sled::Db, tree: &str)
 where
-    K_OLD: Into<K_NEW>,
-    V_OLD: Into<V_NEW>,
-    K_OLD: DeserializeOwned + Serialize + Clone + Send + Sync,
-    V_OLD: DeserializeOwned + Serialize + Clone + Send + Sync,
-    K_NEW: DeserializeOwned + Serialize + Clone + Send + Sync,
-    V_NEW: DeserializeOwned + Serialize + Clone + Send + Sync,
+    KOld: Into<KNew>,
+    VOld: Into<VNew>,
+    KOld: DeserializeOwned + Serialize + Clone + Send + Sync,
+    VOld: DeserializeOwned + Serialize + Clone + Send + Sync,
+    KNew: DeserializeOwned + Serialize + Clone + Send + Sync,
+    VNew: DeserializeOwned + Serialize + Clone + Send + Sync,
 {
     let mut kvs = Vec::new();
 
     {
-        let tree: Tree<K_OLD, V_OLD> = Tree::open(&db, tree);
+        let tree: Tree<KOld, VOld> = Tree::open(&db, tree);
 
         for kv_pair in tree.iter() {
             kvs.push(kv_pair.unwrap().to_owned());
@@ -27,7 +27,7 @@ where
     }
 
     db.drop_tree(tree).unwrap();
-    let tree: Tree<K_NEW, V_NEW> = Tree::open(&db, tree);
+    let tree: Tree<KNew, VNew> = Tree::open(&db, tree);
 
     for kv_pair in kvs.drain(..) {
         tree.insert(&kv_pair.0.into(), &kv_pair.1.into()).unwrap();
