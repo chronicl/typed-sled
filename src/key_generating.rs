@@ -32,6 +32,29 @@ impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
         res.map(|opt_v| (key, opt_v))
     }
 
+    /// Insert a key to a new value, returning the last value if it was set.
+    /// Be careful not to insert a key that conflicts with the keys generated
+    /// by the key generator. If you need the generated key for construction of
+    /// the value, you can first use `next_key` and then use this method with
+    /// the generated key. Alternatively use `insert_fn`.
+    pub fn insert_with_key(&self, key: &KG::Key, value: &V) -> Result<Option<V>> {
+        self.inner.insert(&key, value)
+    }
+
+    pub fn next_key(&self) -> KG::Key {
+        self.key_generator.next_key()
+    }
+
+    /// Insert a generated key to a new dynamically created value, returning the key and the last value if it was set.
+    /// The argument supplied to `f` is a reference to the key and the returned value is the value that will
+    /// be inserted at the key.
+    pub fn insert_fn(&self, f: impl Fn(&KG::Key) -> V) -> Result<(KG::Key, Option<V>)> {
+        let key = self.key_generator.next_key();
+        let value = f(&key);
+        let res = self.insert_with_key(&key, &value);
+        res.map(|opt_v| (key, opt_v))
+    }
+
     pub fn transaction<F, A, E>(&self, f: F) -> TransactionResult<A, E>
     where
         F: Fn(&KeyGeneratingTransactionalTree<KG, V>) -> ConflictableTransactionResult<A, E>,
