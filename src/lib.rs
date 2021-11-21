@@ -48,6 +48,9 @@ pub use sled;
 #[cfg(feature = "convert")]
 pub mod convert;
 
+#[cfg(feature = "key-generating")]
+pub mod key_generating;
+
 // pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 
 /// A flash-sympathetic persistent lock-free B+ tree.
