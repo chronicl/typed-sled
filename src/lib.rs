@@ -85,7 +85,7 @@ pub struct Tree<K, V> {
 }
 
 /// Trait alias for bounds required on keys and values.
-pub trait KV: DeserializeOwned + Serialize + Send + Sync {}
+pub trait KV: for<'a> serde::Deserialize<'a> + Serialize + Send + Sync {}
 
 impl<T: DeserializeOwned + Serialize + Send + Sync> KV for T {}
 
