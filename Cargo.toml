@@ -13,7 +13,15 @@ sled = "0.34"
 serde = {version = "1", features=["derive"]}
 bincode = "1"
 async-trait = "0.1"
+rkyv = "0.7.23"
 
 [features]
 convert = []
 key-generating = []
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "serialize"
+harness = false

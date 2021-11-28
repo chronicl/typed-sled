@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let larry = "Larry".to_string();
     animals.insert(&larry, &Animal::Dog)?;
 
-    assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
+    assert_eq!(animals.get(&larry)?.unwrap().value(), Animal::Dog);
     Ok(())
 }
 
