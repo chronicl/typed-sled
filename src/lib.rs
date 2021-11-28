@@ -586,7 +586,10 @@ impl<K, V> Default for Batch<K, V> {
     }
 }
 
+use pin_project::pin_project;
+#[pin_project]
 pub struct Subscriber<K, V> {
+    #[pin]
     inner: sled::Subscriber,
     phantom_key: PhantomData<K>,
     phantom_value: PhantomData<V>,
@@ -618,7 +621,8 @@ impl<K: KV + Unpin, V: KV + Unpin> Future for Subscriber<K, V> {
     type Output = Option<Event<K, V>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().inner)
+        self.project()
+            .inner
             .poll(cx)
             .map(|opt| opt.map(|e| Event::from_sled(&e)))
     }

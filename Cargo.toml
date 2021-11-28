@@ -13,6 +13,7 @@ sled = "0.34"
 serde = {version = "1", features=["derive"]}
 bincode = "1"
 async-trait = "0.1"
+pin-project = "1"
 
 [[example]]
 name = "key_generating"
