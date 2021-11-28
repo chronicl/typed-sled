@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use rkyv::Deserialize;
 use typed_sled::serialize::{
     BincodeDeserializer, BincodeSerializer, Deserializer, RkyvDeserializer, RkyvSerializer,
     Serializer,
@@ -31,9 +32,18 @@ fn deserialize_bincode<'de, T: for<'a> serde::Deserialize<'a>>(a: &'de [u8]) {
 
 fn deserialize_rkyv<T: rkyv::Archive>(a: &[u8])
 where
-    <T as rkyv::Archive>::Archived: 'static,
+    <T as rkyv::Archive>::Archived: rkyv::Deserialize<T, rkyv::Infallible> + 'static,
 {
-    <RkyvDeserializer as Deserializer<T>>::deserialize(a);
+    let r = <RkyvDeserializer as Deserializer<T>>::deserialize(a);
+    r.deserialize(&mut rkyv::Infallible).unwrap();
+}
+
+fn sled_get(tree: &typed_sled::Tree<String, A>, key: &String) {
+    tree.get(key).unwrap().unwrap().value();
+}
+
+fn sled_insert(tree: &typed_sled::Tree<String, A>, key: &String, a: &A) {
+    tree.insert(key, a).unwrap().unwrap().value();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -74,6 +84,27 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("Rkyv: deserialize struct A", |b| {
         b.iter(|| deserialize_rkyv::<A>(black_box(&a_serialized_rkyv)))
+    });
+
+    let config = sled::Config::new().temporary(true);
+    let db = config.open().unwrap();
+
+    // The id is used by sled to identify which Tree in the database (db) to open.
+    let animals = typed_sled::Tree::<String, A>::open(&db, "unique_id");
+    animals.insert(&"YESSS".to_string(), &a);
+
+    c.bench_function("Tree: get", |b| {
+        b.iter(|| sled_get(black_box(&animals), black_box(&"YESSS".to_string())))
+    });
+
+    c.bench_function("Tree: insert", |b| {
+        b.iter(|| {
+            sled_insert(
+                black_box(&animals),
+                black_box(&"YESSS".to_string()),
+                black_box(&a),
+            )
+        })
     });
 }
 

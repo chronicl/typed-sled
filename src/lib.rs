@@ -2,7 +2,7 @@
 
 //! Sled with Types instead of Bytes.
 //! This crate builds on top of `sled` and handles the (de)serialization
-//! of keys and values that are inserted into a sleSerDe::Tree for you.
+//! of keys and values that are inserted into a sled::Tree for you.
 //! It also includes a convert feature, which allows you to convert any Tree
 //! into another Tree with different key and value types.
 //! It hasn't been tested extensively.
@@ -15,8 +15,6 @@
 //! and all operations are atomic.
 //!
 //! # Example
-use crate::serialize::{Deserializer, Serializer};
-use bincode::deserialize;
 /// ```
 /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// # enum Animal {
@@ -24,11 +22,11 @@ use bincode::deserialize;
 /// #    Cat,
 /// # }
 ///
-/// # pub fn main() -> Result<(), Box<dyn stSerDe::error::Error>> {
-/// let db: sleSerDe::Db = sleSerDe::open("db")?;
+/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let db: sled::Db = sled::open("db")?;
 ///
 /// // The id is used by sled to identify which Tree in the database (db) to open.
-/// let animals = typed_sleSerDe::Tree::<String, Animal>::open(&db, "unique_id");
+/// let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
 ///
 /// let larry = "Larry".to_string();
 /// animals.insert(&larry, &Animal::Dog)?;
@@ -38,7 +36,6 @@ use bincode::deserialize;
 use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
-use serde::Deserialize;
 use sled::{
     transaction::{ConflictableTransactionResult, TransactionResult},
     IVec, Result,
@@ -54,7 +51,7 @@ pub mod convert;
 pub mod key_generating;
 
 pub mod serialize;
-use serialize::{RawValue, Value};
+use serialize::{RawValue, Serializer, Value};
 
 // pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 
@@ -72,12 +69,14 @@ use serialize::{RawValue, Value};
 /// #    Cat,
 /// # }
 ///
-/// # pub fn main() -> Result<(), Box<dyn stSerDe::error::Error>> {
-/// let db: sleSerDe::Db = sleSerDe::open("db")?;
-/// let animals = typed_sleSerDe::Tree::<String, Animal>::open(&db, "animals");
+/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let db: sled::Db = sled::open("db")?;
+/// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
 /// animals.insert(&"Larry".to_string(), &Animal::Dog);
 /// # Ok(()) }
 /// ```
+pub type Tree<K, V> = RawTree<K, V, serialize::BincodeSerDe>;
+
 #[derive(Clone, Debug)]
 pub struct RawTree<K, V, SerDe> {
     inner: sled::Tree,
@@ -85,8 +84,6 @@ pub struct RawTree<K, V, SerDe> {
     value: PhantomData<V>,
     serde: PhantomData<SerDe>,
 }
-
-pub type Tree<K, V> = RawTree<K, V, serialize::BincodeSerDe>;
 
 // type Tree<K, V> = RawTree<
 //     K,
@@ -133,9 +130,9 @@ impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V> + Send + Sync> RawTree<K, V, Se
     /// #    Cat,
     /// # }
     ///
-    /// # pub fn main() -> Result<(), Box<dyn stSerDe::error::Error>> {
-    /// let db: sleSerDe::Db = sleSerDe::open("db")?;
-    /// let animals = typed_sleSerDe::Tree::<String, Animal>::open(&db, "animals");
+    /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let db: sled::Db = sled::open("db")?;
+    /// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
     /// animals.insert(&"Larry".to_string(), &Animal::Dog)?;
     /// # Ok(()) }
     /// ```

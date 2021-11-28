@@ -7,6 +7,8 @@ use rkyv::{
 use sled::IVec;
 use std::{convert::AsRef, marker::PhantomData};
 
+/// The default `Tree` uses bincode for (de)serialization, however if
+/// faster (de)serializtion
 pub trait SerDe<K, V> {
     /// Key Serializer
     type SK: Serializer<K> + Send + Sync;
@@ -58,8 +60,11 @@ pub trait Deserializer<T> {
 }
 
 /// (De)serializer using bincode.
+#[derive(Debug)]
 pub struct BincodeSerDe;
+#[derive(Debug)]
 pub struct BincodeSerializer;
+#[derive(Debug)]
 pub struct BincodeDeserializer;
 
 impl<
@@ -91,8 +96,11 @@ impl<T: for<'a> serde::Deserialize<'a>> Deserializer<T> for BincodeDeserializer 
 }
 
 /// (De)serializer using rkyv.
+#[derive(Debug)]
 pub struct RkyvSerDe;
+#[derive(Debug)]
 pub struct RkyvSerializer;
+#[derive(Debug)]
 pub struct RkyvDeserializer;
 
 use rkyv::ser::serializers::AlignedSerializer;
@@ -101,6 +109,7 @@ impl<
         V: rkyv::Archive + rkyv::Serialize<AlignedSerializer<AlignedVec>>,
     > SerDe<K, V> for RkyvSerDe
 where
+    // Deserialize not necessary here
     <K as Archive>::Archived: rkyv::Deserialize<K, rkyv::Infallible> + 'static,
     <V as Archive>::Archived: rkyv::Deserialize<V, rkyv::Infallible> + 'static,
 {
@@ -122,6 +131,7 @@ impl<T: rkyv::Serialize<AlignedSerializer<AlignedVec>>> Serializer<T> for RkyvSe
 
 impl<T: rkyv::Archive> Deserializer<T> for RkyvDeserializer
 where
+    // would love to remove this 'static bound, but don't know how
     <T as Archive>::Archived: 'static,
 {
     type DeserializedValue<'de> = &'de Archived<T>;
