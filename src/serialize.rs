@@ -7,27 +7,27 @@ use rkyv::{
 use sled::IVec;
 use std::{convert::AsRef, marker::PhantomData};
 
-pub trait SerDe<'de, K, V> {
+pub trait SerDe<K, V> {
     /// Key Serializer
     type SK: Serializer<K> + Send + Sync;
     /// Value Serializer
     type SV: Serializer<V> + Send + Sync;
     /// Key Deserializer
-    type DK: Deserializer<'de, K> + Send + Sync;
+    type DK: Deserializer<K> + Send + Sync;
     /// Value Deserializer
-    type DV: Deserializer<'de, V> + Send + Sync;
+    type DV: Deserializer<V> + Send + Sync;
 }
 
 pub type Value<V, D> = RawValue<V, IVec, D>;
 
 #[derive(Clone, Debug)]
-pub struct RawValue<V, B, D> {
+pub struct RawValue<T, B, D> {
     pub bytes: B,
-    value: PhantomData<V>,
+    value: PhantomData<T>,
     deserializer: PhantomData<D>,
 }
 
-impl<V, B, D> RawValue<V, B, D> {
+impl<T, B, D> RawValue<T, B, D> {
     pub fn new(bytes: B) -> Self {
         Self {
             bytes,
@@ -36,10 +36,10 @@ impl<V, B, D> RawValue<V, B, D> {
         }
     }
 
-    pub fn value<'de>(&'de self) -> D::DeserializedValue
+    pub fn value<'de>(&'de self) -> D::DeserializedValue<'de>
     where
         B: AsRef<[u8]> + 'static,
-        D: Deserializer<'de, V>,
+        D: Deserializer<T>,
     {
         D::deserialize(self.bytes.as_ref())
     }
@@ -51,12 +51,10 @@ pub trait Serializer<T> {
     fn serialize(value: &T) -> Self::Bytes;
 }
 
-pub trait Deserializer<'de, T> {
-    type DeserializedValue;
+pub trait Deserializer<T> {
+    type DeserializedValue<'de>;
 
-    fn deserialize(bytes: &'de [u8]) -> Self::DeserializedValue;
-
-    fn deserialize_og(bytes: &'de [u8]) -> T;
+    fn deserialize<'de>(bytes: &'de [u8]) -> Self::DeserializedValue<'de>;
 }
 
 /// (De)serializer using bincode.
@@ -65,10 +63,9 @@ pub struct BincodeSerializer;
 pub struct BincodeDeserializer;
 
 impl<
-        'de,
-        K: serde::Serialize + serde::Deserialize<'de>,
-        V: serde::Serialize + serde::Deserialize<'de>,
-    > SerDe<'de, K, V> for BincodeSerDe
+        K: serde::Serialize + for<'de> serde::Deserialize<'de>,
+        V: serde::Serialize + for<'de> serde::Deserialize<'de>,
+    > SerDe<K, V> for BincodeSerDe
 {
     type SK = BincodeSerializer;
     type SV = BincodeSerializer;
@@ -84,15 +81,10 @@ impl<T: serde::Serialize> Serializer<T> for BincodeSerializer {
     }
 }
 
-impl<'de, T: serde::Deserialize<'de>> Deserializer<'de, T> for BincodeDeserializer {
-    type DeserializedValue = T;
+impl<T: for<'a> serde::Deserialize<'a>> Deserializer<T> for BincodeDeserializer {
+    type DeserializedValue<'de> = T;
 
-    fn deserialize(bytes: &'de [u8]) -> Self::DeserializedValue {
-        bincode::deserialize(bytes)
-            .expect("deserialization failed, did the type serialized change?")
-    }
-
-    fn deserialize_og(bytes: &'de [u8]) -> T {
+    fn deserialize<'de>(bytes: &'de [u8]) -> Self::DeserializedValue<'de> {
         bincode::deserialize(bytes)
             .expect("deserialization failed, did the type serialized change?")
     }
@@ -105,19 +97,12 @@ pub struct RkyvDeserializer;
 
 use rkyv::ser::serializers::AlignedSerializer;
 impl<
-        'de,
-        K: rkyv::Archive
-            + 'de
-            + rkyv::Serialize<AlignedSerializer<AlignedVec>>
-            + rkyv::Deserialize<K, rkyv::Infallible>,
-        V: rkyv::Archive
-            + 'de
-            + rkyv::Serialize<AlignedSerializer<AlignedVec>>
-            + rkyv::Deserialize<V, rkyv::Infallible>,
-    > SerDe<'de, K, V> for RkyvSerDe
+        K: rkyv::Archive + rkyv::Serialize<AlignedSerializer<AlignedVec>>,
+        V: rkyv::Archive + rkyv::Serialize<AlignedSerializer<AlignedVec>>,
+    > SerDe<K, V> for RkyvSerDe
 where
-    <K as Archive>::Archived: rkyv::Deserialize<K, rkyv::Infallible>,
-    <V as Archive>::Archived: rkyv::Deserialize<V, rkyv::Infallible>,
+    <K as Archive>::Archived: rkyv::Deserialize<K, rkyv::Infallible> + 'static,
+    <V as Archive>::Archived: rkyv::Deserialize<V, rkyv::Infallible> + 'static,
 {
     type SK = RkyvSerializer;
     type SV = RkyvSerializer;
@@ -135,20 +120,13 @@ impl<T: rkyv::Serialize<AlignedSerializer<AlignedVec>>> Serializer<T> for RkyvSe
     }
 }
 
-impl<'de, S: rkyv::Fallible + ?Sized, T: rkyv::Archive + rkyv::Deserialize<T, S> + 'de>
-    Deserializer<'de, T> for RkyvDeserializer
+impl<T: rkyv::Archive> Deserializer<T> for RkyvDeserializer
 where
-    <T as Archive>::Archived: rkyv::Deserialize<T, rkyv::Infallible>,
+    <T as Archive>::Archived: 'static,
 {
-    type DeserializedValue = &'de Archived<T>;
+    type DeserializedValue<'de> = &'de Archived<T>;
 
-    fn deserialize(bytes: &'de [u8]) -> Self::DeserializedValue {
+    fn deserialize<'de>(bytes: &'de [u8]) -> Self::DeserializedValue<'de> {
         unsafe { archived_root::<T>(bytes) }
-    }
-
-    fn deserialize_og(bytes: &'de [u8]) -> T {
-        let archived = unsafe { archived_root::<T>(bytes) };
-        rkyv::Deserialize::<T, rkyv::Infallible>::deserialize(archived, &mut rkyv::Infallible)
-            .unwrap()
     }
 }

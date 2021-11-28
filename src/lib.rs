@@ -121,7 +121,7 @@ impl<V, DV> fmt::Display for CompareAndSwapError<V, DV> {
 // implemented like this in the sled source
 impl<V: std::fmt::Debug, DV: std::fmt::Debug> std::error::Error for CompareAndSwapError<V, DV> {}
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Send + Sync> RawTree<K, V, SerDe> {
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V> + Send + Sync> RawTree<K, V, SerDe> {
     /// Initialize a typed tree. The id identifies the tree to be opened from the db.
     /// # Example
     ///
@@ -281,7 +281,7 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Send + Sync> RawTre
     /// to block. There is a buffer of 1024 items per
     /// `Subscriber`. This can be used to build reactive
     /// and replicated systems.
-    pub fn watch_prefix(&self, prefix: &V) -> Subscriber<'de, K, V, SerDe> {
+    pub fn watch_prefix(&self, prefix: &V) -> Subscriber<K, V, SerDe> {
         Subscriber::from_sled(
             self.inner
                 .watch_prefix(SerDe::SV::serialize(prefix).as_ref()),
@@ -371,12 +371,12 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Send + Sync> RawTre
     /// configured.
     // pub fn set_merge_operator(
     //     &self,
-    //     merge_operator: impl MergeOperator<'de, K, V, SerDe> + 'static,
+    //     merge_operator: impl MergeOperator< K, V, SerDe> + 'static,
     // ) {
     //     self.inner
     //         .set_merge_operator(move |key: &[u8], old_v: Option<&[u8]>, value: &[u8]| {
     //             let opt_v = merge_operator(
-    //                 <SerDe::DK as Deserializer<'de, K>>::deserialize(key),
+    //                 <SerDe::DK as Deserializer< K>>::deserialize(key),
     //                 old_v.map(|v| RawValue::<V, _, SerDe::DV>::new(v).value()),
     //                 RawValue::<V, _, SerDe::DV>::new(value).value(),
     //             );
@@ -392,13 +392,13 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Send + Sync> RawTre
 
     /// Create a double-ended iterator over the tuples of keys and
     /// values in this tree.
-    pub fn iter(&self) -> Iter<'de, K, V, SerDe> {
+    pub fn iter(&self) -> Iter<K, V, SerDe> {
         Iter::from_sled(self.inner.iter())
     }
 
     /// Create a double-ended iterator over tuples of keys and values,
     /// where the keys fall within the specified range.
-    pub fn range<R: RangeBounds<K>>(&self, range: R) -> Iter<'de, K, V, SerDe>
+    pub fn range<R: RangeBounds<K>>(&self, range: R) -> Iter<K, V, SerDe>
     where
         K: std::fmt::Debug,
     {
@@ -448,7 +448,7 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Send + Sync> RawTre
 
     /// Create an iterator over tuples of keys and values,
     /// where the all the keys starts with the given prefix.
-    pub fn scan_prefix(&self, prefix: &V) -> Iter<'de, K, V, SerDe> {
+    pub fn scan_prefix(&self, prefix: &V) -> Iter<K, V, SerDe> {
         Iter::from_sled(self.inner.scan_prefix(SerDe::SV::serialize(prefix)))
     }
 
@@ -514,14 +514,14 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Send + Sync> RawTre
     }
 }
 
-pub trait MergeOperator<'de, K, V, SerDe: serialize::SerDe<'de, K, V>>:
-    Fn(
-    <SerDe::DK as Deserializer<'de, K>>::DeserializedValue,
-    Option<<SerDe::DV as Deserializer<'de, V>>::DeserializedValue>,
-    V,
-) -> Option<V>
-{
-}
+// pub trait MergeOperator<K, V, SerDe: serialize::SerDe<K, V>>:
+//     Fn(
+//     <SerDe::DK as Deserializer<K>>::DeserializedValue,
+//     Option<<SerDe::DV as Deserializer<V>>::DeserializedValue>,
+//     V,
+// ) -> Option<V>
+// {
+// }
 
 pub struct TransactionalTree<'a, K, V, SerDe> {
     inner: &'a sled::transaction::TransactionalTree,
@@ -530,7 +530,7 @@ pub struct TransactionalTree<'a, K, V, SerDe> {
     serde: PhantomData<SerDe>,
 }
 
-impl<'a, 'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> TransactionalTree<'a, K, V, SerDe> {
+impl<'a, K: KV, V: KV, SerDe: serialize::SerDe<K, V>> TransactionalTree<'a, K, V, SerDe> {
     pub fn insert(
         &self,
         key: &K,
@@ -587,14 +587,14 @@ impl<'a, 'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> TransactionalTre
     }
 }
 
-pub struct Iter<'de, K, V, SerDe> {
+pub struct Iter<K, V, SerDe> {
     inner: sled::Iter,
     phantom_key: PhantomData<K>,
     phantom_value: PhantomData<V>,
-    serde: PhantomData<&'de SerDe>,
+    serde: PhantomData<SerDe>,
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> Iterator for Iter<'de, K, V, SerDe> {
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V>> Iterator for Iter<K, V, SerDe> {
     type Item = Result<(Value<K, SerDe::DK>, Value<V, SerDe::DV>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -610,9 +610,7 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> Iterator for Iter<'d
     }
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> DoubleEndedIterator
-    for Iter<'de, K, V, SerDe>
-{
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V>> DoubleEndedIterator for Iter<K, V, SerDe> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
             .next_back()
@@ -620,7 +618,7 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> DoubleEndedIterator
     }
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V> + Sync + Send> Iter<'de, K, V, SerDe> {
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V> + Sync + Send> Iter<K, V, SerDe> {
     pub fn from_sled(iter: sled::Iter) -> Self {
         Iter {
             inner: iter,
@@ -652,7 +650,7 @@ pub struct Batch<K, V, SerDe> {
     serde: PhantomData<SerDe>,
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> Batch<K, V, SerDe> {
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V>> Batch<K, V, SerDe> {
     pub fn insert(&mut self, key: &K, value: &V) {
         self.inner.insert(
             SerDe::SK::serialize(key).as_ref(),
@@ -677,14 +675,14 @@ impl<K, V, SerDe> Default for Batch<K, V, SerDe> {
     }
 }
 
-pub struct Subscriber<'de, K, V, SerDe> {
+pub struct Subscriber<K, V, SerDe> {
     inner: sled::Subscriber,
     phantom_key: PhantomData<K>,
     phantom_value: PhantomData<V>,
-    serde: PhantomData<&'de SerDe>,
+    serde: PhantomData<SerDe>,
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> Subscriber<'de, K, V, SerDe> {
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V>> Subscriber<K, V, SerDe> {
     pub fn next_timeout(
         &mut self,
         timeout: core::time::Duration,
@@ -710,8 +708,8 @@ impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> Subscriber<'de, K, V
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-impl<'de, K: KV + Unpin, V: KV + Unpin, SerDe: serialize::SerDe<'de, K, V>> Future
-    for Subscriber<'de, K, V, SerDe>
+impl<K: KV + Unpin, V: KV + Unpin, SerDe: serialize::SerDe<K, V> + std::marker::Unpin> Future
+    for Subscriber<K, V, SerDe>
 {
     type Output = Option<Event<Value<K, SerDe::DK>, Value<V, SerDe::DV>, SerDe>>;
 
@@ -722,9 +720,7 @@ impl<'de, K: KV + Unpin, V: KV + Unpin, SerDe: serialize::SerDe<'de, K, V>> Futu
     }
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>> Iterator
-    for Subscriber<'de, K, V, SerDe>
-{
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V>> Iterator for Subscriber<K, V, SerDe> {
     type Item = Event<Value<K, SerDe::DK>, Value<V, SerDe::DV>, SerDe>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -738,7 +734,7 @@ pub enum Event<K: KV, V: KV, SerDe> {
     _Unreachable(std::convert::Infallible, std::marker::PhantomData<SerDe>),
 }
 
-impl<'de, K: KV, V: KV, SerDe: serialize::SerDe<'de, K, V>>
+impl<K: KV, V: KV, SerDe: serialize::SerDe<K, V>>
     Event<Value<K, SerDe::DK>, Value<V, SerDe::DV>, SerDe>
 {
     pub fn key(&self) -> &Value<K, SerDe::DK> {

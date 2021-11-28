@@ -25,11 +25,14 @@ fn serialize_rkyv<
     RkyvSerializer::serialize(a)
 }
 
-fn deserialize_bincode<'de, T: serde::Deserialize<'de>>(a: &'de [u8]) {
+fn deserialize_bincode<'de, T: for<'a> serde::Deserialize<'a>>(a: &'de [u8]) {
     <BincodeDeserializer as Deserializer<T>>::deserialize(a);
 }
 
-fn deserialize_rkyv<T: rkyv::Archive>(a: &[u8]) {
+fn deserialize_rkyv<T: rkyv::Archive>(a: &[u8])
+where
+    <T as rkyv::Archive>::Archived: 'static,
+{
     <RkyvDeserializer as Deserializer<T>>::deserialize(a);
 }
 
@@ -46,6 +49,10 @@ fn criterion_benchmark(c: &mut Criterion) {
     // makes sense since the Archived
     c.bench_function("Bincode: serialize struct A", |b| {
         b.iter(|| serialize_bincode(black_box(&a)))
+    });
+
+    c.bench_function("Rkyv: serialize struct A", |b| {
+        b.iter(|| serialize_rkyv(black_box(&a)))
     });
 
     c.bench_function("Rkyv: serialize struct A", |b| {
