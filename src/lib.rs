@@ -14,6 +14,8 @@
 //!
 //! # Example
 /// ```
+/// # use serde::{Serialize, Deserialize};
+/// #
 /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// # enum Animal {
 /// #     Dog,
@@ -21,7 +23,8 @@
 /// # }
 ///
 /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let db: sled::Db = sled::open("db")?;
+/// let config = sled::Config::new().temporary(true);
+/// let db = config.open().unwrap();
 ///
 /// // The id is used by sled to identify which Tree in the database (db) to open.
 /// let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
@@ -59,6 +62,7 @@ pub mod key_generating;
 ///
 /// ```
 /// # use serde::{Serialize, Deserialize};
+/// #
 /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// # enum Animal {
 /// #     Dog,
@@ -66,7 +70,9 @@ pub mod key_generating;
 /// # }
 ///
 /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let db: sled::Db = sled::open("db")?;
+/// let config = sled::Config::new().temporary(true);
+/// let db = config.open().unwrap();
+///
 /// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
 /// animals.insert(&"Larry".to_string(), &Animal::Dog);
 /// # Ok(()) }
@@ -108,6 +114,7 @@ impl<K: KV, V: KV> Tree<K, V> {
     ///
     /// ```
     /// # use serde::{Serialize, Deserialize};
+    /// #
     /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     /// # enum Animal {
     /// #     Dog,
@@ -115,7 +122,9 @@ impl<K: KV, V: KV> Tree<K, V> {
     /// # }
     ///
     /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let db: sled::Db = sled::open("db")?;
+    /// let config = sled::Config::new().temporary(true);
+    /// let db = config.open().unwrap();
+    ///
     /// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
     /// animals.insert(&"Larry".to_string(), &Animal::Dog)?;
     /// # Ok(()) }
