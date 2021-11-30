@@ -18,3 +18,7 @@ pin-project = "1"
 [[example]]
 name = "key_generating"
 required-features = ["key-generating"]
+
+[features]
+key-generating = []
+convert = []

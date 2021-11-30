@@ -9,12 +9,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 /// See CounterTree for a specific example of how to use this type.
 #[derive(Clone, Debug)]
-pub struct KeyGeneratingTree<KG: KeyGenerating, V> {
+pub struct KeyGeneratingTree<KG: KeyGenerating<V>, V> {
     key_generator: KG,
     inner: Tree<KG::Key, V>,
 }
 
-impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
+impl<KG: KeyGenerating<V>, V> KeyGeneratingTree<KG, V> {
     pub fn open<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         let tree = Tree::open(db, id);
         let key_generator = KG::initialize(&tree);
@@ -26,7 +26,11 @@ impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
     }
 
     /// Insert a generated key to a new value, returning the key and the last value if it was set.
-    pub fn insert(&self, value: &V) -> Result<(KG::Key, Option<V>)> {
+    pub fn insert(&self, value: &V) -> Result<(KG::Key, Option<V>)>
+    where
+        KG::Key: KV,
+        V: KV,
+    {
         let key = self.key_generator.next_key();
         let res = self.inner.insert(&key, value);
         res.map(|opt_v| (key, opt_v))
@@ -37,7 +41,11 @@ impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
     /// by the key generator. If you need the generated key for construction of
     /// the value, you can first use `next_key` and then use this method with
     /// the generated key. Alternatively use `insert_fn`.
-    pub fn insert_with_key(&self, key: &KG::Key, value: &V) -> Result<Option<V>> {
+    pub fn insert_with_key(&self, key: &KG::Key, value: &V) -> Result<Option<V>>
+    where
+        KG::Key: KV,
+        V: KV,
+    {
         self.inner.insert(&key, value)
     }
 
@@ -48,7 +56,11 @@ impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
     /// Insert a generated key to a new dynamically created value, returning the key and the last value if it was set.
     /// The argument supplied to `f` is a reference to the key and the returned value is the value that will
     /// be inserted at the key.
-    pub fn insert_fn(&self, f: impl Fn(&KG::Key) -> V) -> Result<(KG::Key, Option<V>)> {
+    pub fn insert_fn(&self, f: impl Fn(&KG::Key) -> V) -> Result<(KG::Key, Option<V>)>
+    where
+        KG::Key: KV,
+        V: KV,
+    {
         let key = self.key_generator.next_key();
         let value = f(&key);
         let res = self.insert_with_key(&key, &value);
@@ -83,7 +95,7 @@ impl<KG: KeyGenerating, V: KV> KeyGeneratingTree<KG, V> {
     }
 }
 
-impl<KG: KeyGenerating, V: KV> Deref for KeyGeneratingTree<KG, V> {
+impl<KG: KeyGenerating<V>, V> Deref for KeyGeneratingTree<KG, V> {
     type Target = Tree<KG::Key, V>;
 
     fn deref(&self) -> &Self::Target {
@@ -95,26 +107,33 @@ impl<KG: KeyGenerating, V: KV> Deref for KeyGeneratingTree<KG, V> {
 /// for a typed_sled::Tree.
 ///
 /// See CounterTree for a specific example of how to use this trait.
-pub trait KeyGenerating {
-    type Key: KV;
+pub trait KeyGenerating<V> {
+    type Key;
 
-    fn initialize<V: KV>(tree: &Tree<Self::Key, V>) -> Self;
+    fn initialize(tree: &Tree<Self::Key, V>) -> Self;
 
     fn next_key(&self) -> Self::Key;
 }
 
 #[derive(Clone, Debug)]
-pub struct KeyGeneratingBatch<'a, KG: KeyGenerating, V> {
+pub struct KeyGeneratingBatch<'a, KG: KeyGenerating<V>, V> {
     key_generator: &'a KG,
     inner: Batch<KG::Key, V>,
 }
 
-impl<'a, KG: KeyGenerating<Key = K>, K: KV, V: KV> KeyGeneratingBatch<'a, KG, V> {
-    pub fn insert(&mut self, value: &V) {
+impl<'a, KG: KeyGenerating<V, Key = K>, K, V> KeyGeneratingBatch<'a, KG, V> {
+    pub fn insert(&mut self, value: &V)
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner.insert(&self.key_generator.next_key(), value);
     }
 
-    pub fn remove(&mut self, key: &K) {
+    pub fn remove(&mut self, key: &K)
+    where
+        K: KV,
+    {
         self.inner.remove(key)
     }
 }
@@ -125,10 +144,10 @@ pub type CounterTree<V> = KeyGeneratingTree<Counter, V>;
 #[derive(Debug)]
 pub struct Counter(AtomicU64);
 
-impl KeyGenerating for Counter {
+impl<V: KV> KeyGenerating<V> for Counter {
     type Key = u64;
 
-    fn initialize<Value: KV>(tree: &Tree<Self::Key, Value>) -> Self {
+    fn initialize(tree: &Tree<Self::Key, V>) -> Self {
         if let Some((key, _)) = tree
             .last()
             .expect("KeyGenerating Counter failed to access sled Tree.")
@@ -144,16 +163,20 @@ impl KeyGenerating for Counter {
     }
 }
 
-pub struct KeyGeneratingTransactionalTree<'a, KG: KeyGenerating, V> {
+pub struct KeyGeneratingTransactionalTree<'a, KG: KeyGenerating<V>, V> {
     key_generator: &'a KG,
     inner: &'a crate::TransactionalTree<'a, KG::Key, V>,
 }
 
-impl<'a, KG: KeyGenerating, V: KV> KeyGeneratingTransactionalTree<'a, KG, V> {
+impl<'a, KG: KeyGenerating<V>, V> KeyGeneratingTransactionalTree<'a, KG, V> {
     pub fn insert(
         &self,
         value: &V,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
+    where
+        KG::Key: KV,
+        V: KV,
+    {
         self.inner.insert(&self.key_generator.next_key(), value)
     }
 
@@ -165,7 +188,7 @@ impl<'a, KG: KeyGenerating, V: KV> KeyGeneratingTransactionalTree<'a, KG, V> {
     }
 }
 
-impl<'a, KG: KeyGenerating, V> Deref for KeyGeneratingTransactionalTree<'a, KG, V> {
+impl<'a, KG: KeyGenerating<V>, V> Deref for KeyGeneratingTransactionalTree<'a, KG, V> {
     type Target = crate::TransactionalTree<'a, KG::Key, V>;
 
     fn deref(&self) -> &Self::Target {

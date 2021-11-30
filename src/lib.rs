@@ -37,7 +37,7 @@
 use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Serialize;
 use sled::{
     transaction::{ConflictableTransactionResult, TransactionResult},
     IVec, Result,
@@ -85,9 +85,9 @@ pub struct Tree<K, V> {
 }
 
 /// Trait alias for bounds required on keys and values.
-pub trait KV: for<'a> serde::Deserialize<'a> + Serialize + Send + Sync {}
+pub trait KV: for<'a> serde::Deserialize<'a> + Serialize {}
 
-impl<T: DeserializeOwned + Serialize + Send + Sync> KV for T {}
+impl<T: for<'a> serde::Deserialize<'a> + Serialize> KV for T {}
 
 /// Compare and swap error.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -108,7 +108,7 @@ impl<V> fmt::Display for CompareAndSwapError<V> {
 impl<V: std::fmt::Debug> std::error::Error for CompareAndSwapError<V> {}
 
 // These Trait bounds should probably be specified on the functions themselves, but too lazy.
-impl<K: KV, V: KV> Tree<K, V> {
+impl<K, V> Tree<K, V> {
     /// Initialize a typed tree. The id identifies the tree to be opened from the db.
     /// # Example
     ///
@@ -138,7 +138,11 @@ impl<K: KV, V: KV> Tree<K, V> {
     }
 
     /// Insert a key to a new value, returning the last value if it was set.
-    pub fn insert(&self, key: &K, value: &V) -> Result<Option<V>> {
+    pub fn insert(&self, key: &K, value: &V) -> Result<Option<V>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .insert(serialize(key), serialize(value))
             .map(|opt| opt.map(|old_value| deserialize(&old_value)))
@@ -166,14 +170,22 @@ impl<K: KV, V: KV> Tree<K, V> {
     }
 
     /// Retrieve a value from the Tree if it exists.
-    pub fn get(&self, key: &K) -> Result<Option<V>> {
+    pub fn get(&self, key: &K) -> Result<Option<V>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .get(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
     }
 
     /// Delete a value, returning the old value if it existed.
-    pub fn remove(&self, key: &K) -> Result<Option<V>> {
+    pub fn remove(&self, key: &K) -> Result<Option<V>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .remove(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
@@ -189,7 +201,11 @@ impl<K: KV, V: KV> Tree<K, V> {
         key: &K,
         old: Option<&V>,
         new: Option<&V>,
-    ) -> Result<core::result::Result<(), CompareAndSwapError<V>>> {
+    ) -> Result<core::result::Result<(), CompareAndSwapError<V>>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .compare_and_swap(
                 serialize(key),
@@ -208,6 +224,8 @@ impl<K: KV, V: KV> Tree<K, V> {
     // not sure if implemented correctly (different trait bound for F)
     pub fn update_and_fetch<F>(&self, key: &K, mut f: F) -> Result<Option<V>>
     where
+        K: KV,
+        V: KV,
         F: FnMut(Option<V>) -> Option<V>,
     {
         self.inner
@@ -221,6 +239,8 @@ impl<K: KV, V: KV> Tree<K, V> {
     // not sure if implemented correctly (different trait bound for F)
     pub fn fetch_and_update<F>(&self, key: &K, mut f: F) -> Result<Option<V>>
     where
+        K: KV,
+        V: KV,
         F: FnMut(Option<V>) -> Option<V>,
     {
         self.inner
@@ -239,7 +259,10 @@ impl<K: KV, V: KV> Tree<K, V> {
     /// to block. There is a buffer of 1024 items per
     /// `Subscriber`. This can be used to build reactive
     /// and replicated systems.
-    pub fn watch_prefix(&self, prefix: &V) -> Subscriber<K, V> {
+    pub fn watch_prefix(&self, prefix: &K) -> Subscriber<K, V>
+    where
+        K: KV,
+    {
         Subscriber::from_sled(self.inner.watch_prefix(serialize(prefix)))
     }
 
@@ -273,13 +296,20 @@ impl<K: KV, V: KV> Tree<K, V> {
 
     /// Returns `true` if the `Tree` contains a value for
     /// the specified key.
-    pub fn contains_key(&self, key: &K) -> Result<bool> {
+    pub fn contains_key(&self, key: &K) -> Result<bool>
+    where
+        K: KV,
+    {
         self.inner.contains_key(serialize(key))
     }
 
     /// Retrieve the key and value before the provided key,
     /// if one exists.
-    pub fn get_lt(&self, key: &K) -> Result<Option<(K, V)>> {
+    pub fn get_lt(&self, key: &K) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .get_lt(serialize(key))
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
@@ -287,7 +317,11 @@ impl<K: KV, V: KV> Tree<K, V> {
 
     /// Retrieve the next key and value from the `Tree` after the
     /// provided key.
-    pub fn get_gt(&self, key: &K) -> Result<Option<(K, V)>> {
+    pub fn get_gt(&self, key: &K) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .get_gt(serialize(key))
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
@@ -305,7 +339,11 @@ impl<K: KV, V: KV> Tree<K, V> {
     /// Merge operators are shared by all instances of a particular
     /// `Tree`. Different merge operators may be set on different
     /// `Tree`s.
-    pub fn merge(&self, key: &K, value: &V) -> Result<Option<V>> {
+    pub fn merge(&self, key: &K, value: &V) -> Result<Option<V>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .merge(serialize(key), serialize(value))
             .map(|res| res.map(|old_v| deserialize(&old_v)))
@@ -324,7 +362,11 @@ impl<K: KV, V: KV> Tree<K, V> {
     ///
     /// Calling `merge` will panic if no merge operator has been
     /// configured.
-    pub fn set_merge_operator(&self, merge_operator: impl MergeOperator<K, V> + 'static) {
+    pub fn set_merge_operator(&self, merge_operator: impl MergeOperator<K, V> + 'static)
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .set_merge_operator(move |key: &[u8], old_v: Option<&[u8]>, value: &[u8]| {
                 let opt_v = merge_operator(
@@ -346,7 +388,7 @@ impl<K: KV, V: KV> Tree<K, V> {
     /// where the keys fall within the specified range.
     pub fn range<R: RangeBounds<K>>(&self, range: R) -> Iter<K, V>
     where
-        K: std::fmt::Debug,
+        K: KV + std::fmt::Debug,
     {
         match (range.start_bound(), range.end_bound()) {
             (Bound::Unbounded, Bound::Unbounded) => {
@@ -382,13 +424,20 @@ impl<K: KV, V: KV> Tree<K, V> {
 
     /// Create an iterator over tuples of keys and values,
     /// where the all the keys starts with the given prefix.
-    pub fn scan_prefix(&self, prefix: &V) -> Iter<K, V> {
+    pub fn scan_prefix(&self, prefix: &K) -> Iter<K, V>
+    where
+        K: KV,
+    {
         Iter::from_sled(self.inner.scan_prefix(serialize(prefix)))
     }
 
     /// Returns the first key and value in the `Tree`, or
     /// `None` if the `Tree` is empty.
-    pub fn first(&self) -> Result<Option<(K, V)>> {
+    pub fn first(&self) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .first()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
@@ -396,21 +445,33 @@ impl<K: KV, V: KV> Tree<K, V> {
 
     /// Returns the last key and value in the `Tree`, or
     /// `None` if the `Tree` is empty.
-    pub fn last(&self) -> Result<Option<(K, V)>> {
+    pub fn last(&self) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .last()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Atomically removes the maximum item in the `Tree` instance.
-    pub fn pop_max(&self) -> Result<Option<(K, V)>> {
+    pub fn pop_max(&self) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .pop_max()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
     }
 
     /// Atomically removes the minimum item in the `Tree` instance.
-    pub fn pop_min(&self) -> Result<Option<(K, V)>> {
+    pub fn pop_min(&self) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .pop_min()
             .map(|res| res.map(|(k, v)| (deserialize(&k), deserialize(&v))))
@@ -456,12 +517,16 @@ pub struct TransactionalTree<'a, K, V> {
     phantom_value: PhantomData<V>,
 }
 
-impl<'a, K: KV, V: KV> TransactionalTree<'a, K, V> {
+impl<'a, K, V> TransactionalTree<'a, K, V> {
     pub fn insert(
         &self,
         key: &K,
         value: &V,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .insert(serialize(key), serialize(value))
             .map(|opt| opt.map(|v| deserialize(&v)))
@@ -470,7 +535,11 @@ impl<'a, K: KV, V: KV> TransactionalTree<'a, K, V> {
     pub fn remove(
         &self,
         key: &K,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .remove(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
@@ -479,7 +548,11 @@ impl<'a, K: KV, V: KV> TransactionalTree<'a, K, V> {
     pub fn get(
         &self,
         key: &K,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError> {
+    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .get(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
@@ -531,7 +604,7 @@ impl<K: KV, V: KV> DoubleEndedIterator for Iter<K, V> {
     }
 }
 
-impl<K: KV, V: KV> Iter<K, V> {
+impl<K, V> Iter<K, V> {
     pub fn from_sled(iter: sled::Iter) -> Self {
         Iter {
             inner: iter,
@@ -542,8 +615,8 @@ impl<K: KV, V: KV> Iter<K, V> {
 
     pub fn keys(self) -> impl DoubleEndedIterator<Item = Result<K>> + Send + Sync
     where
-        K: Send + Sync,
-        V: Send + Sync,
+        K: KV + Send + Sync,
+        V: KV + Send + Sync,
     {
         self.map(|r| r.map(|(k, _v)| k))
     }
@@ -551,8 +624,8 @@ impl<K: KV, V: KV> Iter<K, V> {
     /// Iterate over the values of this Tree
     pub fn values(self) -> impl DoubleEndedIterator<Item = Result<V>> + Send + Sync
     where
-        K: Send + Sync,
-        V: Send + Sync,
+        K: KV + Send + Sync,
+        V: KV + Send + Sync,
     {
         self.map(|r| r.map(|(_k, v)| v))
     }
@@ -565,12 +638,19 @@ pub struct Batch<K, V> {
     phantom_value: PhantomData<V>,
 }
 
-impl<K: KV, V: KV> Batch<K, V> {
-    pub fn insert(&mut self, key: &K, value: &V) {
+impl<K, V> Batch<K, V> {
+    pub fn insert(&mut self, key: &K, value: &V)
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner.insert(serialize(key), serialize(value));
     }
 
-    pub fn remove(&mut self, key: &K) {
+    pub fn remove(&mut self, key: &K)
+    where
+        K: KV,
+    {
         self.inner.remove(serialize(key))
     }
 }
@@ -595,11 +675,15 @@ pub struct Subscriber<K, V> {
     phantom_value: PhantomData<V>,
 }
 
-impl<K: KV, V: KV> Subscriber<K, V> {
+impl<K, V> Subscriber<K, V> {
     pub fn next_timeout(
         &mut self,
         timeout: core::time::Duration,
-    ) -> core::result::Result<Event<K, V>, std::sync::mpsc::RecvTimeoutError> {
+    ) -> core::result::Result<Event<K, V>, std::sync::mpsc::RecvTimeoutError>
+    where
+        K: KV,
+        V: KV,
+    {
         self.inner
             .next_timeout(timeout)
             .map(|e| Event::from_sled(&e))
@@ -636,19 +720,26 @@ impl<K: KV, V: KV> Iterator for Subscriber<K, V> {
     }
 }
 
-pub enum Event<K: KV, V: KV> {
+pub enum Event<K, V> {
     Insert { key: K, value: V },
     Remove { key: K },
 }
 
-impl<K: KV, V: KV> Event<K, V> {
-    pub fn key(&self) -> &K {
+impl<K, V> Event<K, V> {
+    pub fn key(&self) -> &K
+    where
+        K: KV,
+    {
         match self {
             Self::Insert { key, .. } | Self::Remove { key } => key,
         }
     }
 
-    pub fn from_sled(event: &sled::Event) -> Self {
+    pub fn from_sled(event: &sled::Event) -> Self
+    where
+        K: KV,
+        V: KV,
+    {
         match event {
             sled::Event::Insert { key, value } => Self::Insert {
                 key: deserialize(key),
