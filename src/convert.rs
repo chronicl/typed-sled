@@ -1,5 +1,4 @@
-use crate::Tree;
-use serde::{de::DeserializeOwned, Serialize};
+use crate::{Tree, KV};
 use std::convert::Into;
 
 /// Convert one tree into another. The types of the old key and value need
@@ -11,10 +10,10 @@ pub fn convert<KOld, VOld, KNew, VNew>(db: &sled::Db, tree: &str)
 where
     KOld: Into<KNew>,
     VOld: Into<VNew>,
-    KOld: DeserializeOwned + Serialize + Clone + Send + Sync,
-    VOld: DeserializeOwned + Serialize + Clone + Send + Sync,
-    KNew: DeserializeOwned + Serialize + Clone + Send + Sync,
-    VNew: DeserializeOwned + Serialize + Clone + Send + Sync,
+    KOld: KV,
+    VOld: KV,
+    KNew: KV,
+    VNew: KV,
 {
     let mut kvs = Vec::new();
 
@@ -22,7 +21,7 @@ where
         let tree: Tree<KOld, VOld> = Tree::open(&db, tree);
 
         for kv_pair in tree.iter() {
-            kvs.push(kv_pair.unwrap().to_owned());
+            kvs.push(kv_pair.unwrap());
         }
     }
 
