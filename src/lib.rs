@@ -52,6 +52,9 @@ pub mod convert;
 #[cfg(feature = "key-generating")]
 pub mod key_generating;
 
+#[cfg(feature = "search")]
+pub mod search;
+
 // pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 
 /// A flash-sympathetic persistent lock-free B+ tree.
@@ -77,11 +80,23 @@ pub mod key_generating;
 /// animals.insert(&"Larry".to_string(), &Animal::Dog);
 /// # Ok(()) }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Tree<K, V> {
     inner: sled::Tree,
-    key: PhantomData<K>,
-    value: PhantomData<V>,
+    _key: PhantomData<fn() -> K>,
+    _value: PhantomData<fn() -> V>,
+}
+
+// Manual implementation to make ToOwned behave better.
+// With derive(Clone) to_owned() on a reference returns a reference.
+impl<K, V> Clone for Tree<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            _key: PhantomData,
+            _value: PhantomData,
+        }
+    }
 }
 
 /// Trait alias for bounds required on keys and values.
@@ -132,8 +147,8 @@ impl<K, V> Tree<K, V> {
     pub fn open<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         Self {
             inner: db.open_tree(id.as_ref()).unwrap(),
-            key: PhantomData,
-            value: PhantomData,
+            _key: PhantomData,
+            _value: PhantomData,
         }
     }
 
@@ -156,8 +171,8 @@ impl<K, V> Tree<K, V> {
         self.inner.transaction(|sled_transactional_tree| {
             f(&TransactionalTree {
                 inner: sled_transactional_tree,
-                phantom_key: PhantomData,
-                phantom_value: PhantomData,
+                _key: PhantomData,
+                _value: PhantomData,
             })
         })
     }
@@ -178,6 +193,29 @@ impl<K, V> Tree<K, V> {
         self.inner
             .get(serialize(key))
             .map(|opt| opt.map(|v| deserialize(&v)))
+    }
+
+    /// Retrieve a value from the Tree if it exists. The key must be in serialized form.
+    pub fn get_from_raw<B: AsRef<[u8]>>(&self, key_bytes: B) -> Result<Option<V>>
+    where
+        K: KV,
+        V: KV,
+    {
+        self.inner
+            .get(key_bytes.as_ref())
+            .map(|opt| opt.map(|v| deserialize(&v)))
+    }
+
+    /// Deserialize a key and retrieve it's value from the Tree if it exists.
+    /// The deserialization is only done if a value was retrieved successfully.
+    pub fn get_kv_from_raw<B: AsRef<[u8]>>(&self, key_bytes: B) -> Result<Option<(K, V)>>
+    where
+        K: KV,
+        V: KV,
+    {
+        self.inner
+            .get(key_bytes.as_ref())
+            .map(|opt| opt.map(|v| (deserialize(key_bytes.as_ref()), deserialize(&v))))
     }
 
     /// Delete a value, returning the old value if it existed.
@@ -264,6 +302,21 @@ impl<K, V> Tree<K, V> {
         K: KV,
     {
         Subscriber::from_sled(self.inner.watch_prefix(serialize(prefix)))
+    }
+
+    /// Subscribe to  all`Event`s. Events for particular keys are
+    /// guaranteed to be witnessed in the same order by all
+    /// threads, but threads may witness different interleavings
+    /// of `Event`s across different keys. If subscribers don't
+    /// keep up with new writes, they will cause new writes
+    /// to block. There is a buffer of 1024 items per
+    /// `Subscriber`. This can be used to build reactive
+    /// and replicated systems.
+    pub fn watch_all(&self) -> Subscriber<K, V>
+    where
+        K: KV,
+    {
+        Subscriber::from_sled(self.inner.watch_prefix(vec![]))
     }
 
     /// Synchronously flushes all dirty IO buffers and calls
@@ -513,8 +566,8 @@ pub trait MergeOperator<K, V>: Fn(K, Option<V>, V) -> Option<V> {}
 
 pub struct TransactionalTree<'a, K, V> {
     inner: &'a sled::transaction::TransactionalTree,
-    phantom_key: PhantomData<K>,
-    phantom_value: PhantomData<V>,
+    _key: PhantomData<fn() -> K>,
+    _value: PhantomData<fn() -> V>,
 }
 
 impl<'a, K, V> TransactionalTree<'a, K, V> {
@@ -576,8 +629,8 @@ impl<'a, K, V> TransactionalTree<'a, K, V> {
 
 pub struct Iter<K, V> {
     inner: sled::Iter,
-    phantom_key: PhantomData<K>,
-    phantom_value: PhantomData<V>,
+    _key: PhantomData<fn() -> K>,
+    _value: PhantomData<fn() -> V>,
 }
 
 impl<K: KV, V: KV> Iterator for Iter<K, V> {
@@ -608,8 +661,8 @@ impl<K, V> Iter<K, V> {
     pub fn from_sled(iter: sled::Iter) -> Self {
         Iter {
             inner: iter,
-            phantom_key: PhantomData,
-            phantom_value: PhantomData,
+            _key: PhantomData,
+            _value: PhantomData,
         }
     }
 
@@ -634,8 +687,8 @@ impl<K, V> Iter<K, V> {
 #[derive(Clone, Debug)]
 pub struct Batch<K, V> {
     inner: sled::Batch,
-    phantom_key: PhantomData<K>,
-    phantom_value: PhantomData<V>,
+    _key: PhantomData<fn() -> K>,
+    _value: PhantomData<fn() -> V>,
 }
 
 impl<K, V> Batch<K, V> {
@@ -660,8 +713,8 @@ impl<K, V> Default for Batch<K, V> {
     fn default() -> Self {
         Self {
             inner: Default::default(),
-            phantom_key: PhantomData,
-            phantom_value: PhantomData,
+            _key: PhantomData,
+            _value: PhantomData,
         }
     }
 }
@@ -671,8 +724,8 @@ use pin_project::pin_project;
 pub struct Subscriber<K, V> {
     #[pin]
     inner: sled::Subscriber,
-    phantom_key: PhantomData<K>,
-    phantom_value: PhantomData<V>,
+    _key: PhantomData<fn() -> K>,
+    _value: PhantomData<fn() -> V>,
 }
 
 impl<K, V> Subscriber<K, V> {
@@ -692,8 +745,8 @@ impl<K, V> Subscriber<K, V> {
     pub fn from_sled(subscriber: sled::Subscriber) -> Self {
         Self {
             inner: subscriber,
-            phantom_key: PhantomData,
-            phantom_value: PhantomData,
+            _key: PhantomData,
+            _value: PhantomData,
         }
     }
 }
@@ -752,14 +805,16 @@ impl<K, V> Event<K, V> {
     }
 }
 
-pub(crate) fn deserialize<'a, T>(bytes: &'a [u8]) -> T
+/// The function which is used to deserialize all keys and values.
+pub fn deserialize<'a, T>(bytes: &'a [u8]) -> T
 where
     T: serde::de::Deserialize<'a>,
 {
     bincode::deserialize(bytes).expect("deserialization failed, did the type serialized change?")
 }
 
-pub(crate) fn serialize<T>(value: &T) -> Vec<u8>
+/// The function which is used to serialize all keys and values.
+pub fn serialize<T>(value: &T) -> Vec<u8>
 where
     T: serde::Serialize,
 {
