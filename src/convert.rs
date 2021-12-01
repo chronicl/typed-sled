@@ -1,11 +1,27 @@
+//! Convert one typed [Tree][crate::Tree] into another.
+//! # Example
+//! ```
+//! # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!  let db = sled::Config::new().temporary(true).open().unwrap();
+//!  
+//!  {
+//!      let old_tree: Tree<u32, u32> = Tree::open(&db, "test_tree");
+//!  
+//!      old_tree.insert(&1, &2)?;
+//!      old_tree.insert(&3, &4)?;
+//!      old_tree.flush()?;
+//!  }
+//!  
+//!  convert::<u32, u32, u64, u64>(&db, "test_tree");
+//!  let tree: Tree<u64, u64> = Tree::open(&db, "test_tree");
+//!  assert_eq!(tree.get(&1)?.unwrap(), 2);
+//!  assert_eq!(tree.get(&3)?.unwrap(), 4);
+//! # Ok(()) }
+//! ```
 use crate::{Tree, KV};
 use std::convert::Into;
 
-/// Convert one tree into another. The types of the old key and value need
-/// to implement Into for the new key and value types respectively.
-/// Right now this function is storing the entire old tree in memory
-/// so if the old tree contains a large amount of data, the conversion
-/// will not be successful. It's still a ToDo to fix this.
+/// Convert `Tree<KOld, VOld>` to `Tree<KNew, VNew>`
 pub fn convert<KOld, VOld, KNew, VNew>(db: &sled::Db, tree: &str)
 where
     KOld: Into<KNew>,

@@ -2,8 +2,7 @@ use typed_sled::key_generating::CounterTree;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If you want to persist the data use sled::open instead
-    let config = sled::Config::new().temporary(true);
-    let db = config.open().unwrap();
+    let db = sled::Config::new().temporary(true).open().unwrap();
 
     // The id is used by sled to identify which Tree in the database (db) to open.
     let tree = CounterTree::open(&db, "unique_id");

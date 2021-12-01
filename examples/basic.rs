@@ -2,21 +2,16 @@ use serde::{Deserialize, Serialize};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If you want to persist the data use sled::open instead
-    let config = sled::Config::new().temporary(true);
-    let db = config.open().unwrap();
+    let db = sled::Config::new().temporary(true).open().unwrap();
 
     // The id is used by sled to identify which Tree in the database (db) to open.
-    let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
+    let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
 
-    let larry = "Larry".to_string();
-    animals.insert(&larry, &Animal::Dog)?;
+    tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
 
-    assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
+    assert_eq!(tree.get(&"some_key".to_owned())?, Some(SomeValue(10)));
     Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-enum Animal {
-    Dog,
-    Cat,
-}
+struct SomeValue(u32);

@@ -1,11 +1,13 @@
 //! Sled with Types instead of Bytes.
-//! This crate builds on top of `sled` and handles the (de)serialization
-//! of keys and values that are inserted into a sled::Tree for you.
-//! It also includes a convert feature, which allows you to convert any Tree
-//! into another Tree with different key and value types.
-//! It hasn't been tested extensively.
 //!
-//! Some info about sled:
+//! This crate builds on top of [sled] and handles the (de)serialization
+//! of keys and values that are inserted into a sled::Tree for you.
+//! It also includes a few convenience features:
+//! * [convert]: Convert any `Tree` into another `Tree` with different key and value types.
+//! * [key_generating]: Create `Tree`s with automatically generated keys.
+//! * [search]: `SearchEngine` on top of a `Tree`.
+//!
+//! Some info about [sled]:
 //! `sled` is a high-performance embedded database with
 //! an API that is similar to a `BTreeMap<[u8], [u8]>`,
 //! but with several additional capabilities for
@@ -13,27 +15,29 @@
 //! and all operations are atomic.
 //!
 //! # Example
-/// ```
-/// # use serde::{Serialize, Deserialize};
-/// #
-/// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// # enum Animal {
-/// #     Dog,
-/// #    Cat,
-/// # }
-///
-/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let config = sled::Config::new().temporary(true);
-/// let db = config.open().unwrap();
-///
-/// // The id is used by sled to identify which Tree in the database (db) to open.
-/// let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
-///
-/// let larry = "Larry".to_string();
-/// animals.insert(&larry, &Animal::Dog)?;
-/// assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
-/// # Ok(()) }
-/// ```
+//! ```
+//! # use serde::{Serialize, Deserialize};
+//! #
+//! # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! # enum Animal {
+//! #     Dog,
+//! #    Cat,
+//! # }
+//!
+//! # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = sled::Config::new().temporary(true);
+//! let db = config.open().unwrap();
+//!
+//! // The id is used by sled to identify which Tree in the database (db) to open.
+//! let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
+//!
+//! let larry = "Larry".to_string();
+//! animals.insert(&larry, &Animal::Dog)?;
+//! assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
+//! # Ok(()) }
+//! ```
+//!
+//! [sled]: https://docs.rs/sled/latest/sled/
 use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
@@ -59,13 +63,11 @@ pub mod search;
 
 /// A flash-sympathetic persistent lock-free B+ tree.
 ///
-/// A `Tree` represents a single logical keyspacFe / namespace / bucket.
+/// A `Tree` represents a single logical keyspace / namespace / bucket.
 ///
 /// # Example
-///
 /// ```
 /// # use serde::{Serialize, Deserialize};
-/// #
 /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// # enum Animal {
 /// #     Dog,

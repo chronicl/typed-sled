@@ -1,52 +1,54 @@
-//! A search engine for a single tree, using `tantivy` under the hood.
+//! A search engine for a single [Tree][crate::Tree], using [tantivy] under the hood.
 //! # Example
-/// ```
-/// use typed_sled::search::SearchEngine;
-/// use tantivy::{
-///     doc,
-///     schema::{Schema, TEXT},
-/// };
-///
-/// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// struct BlogPost {
-///     author: String,
-///     title: String,
-///     body: String,
-/// }
-///
-/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let config = sled::Config::new().temporary(true);
-/// let db = config.open().unwrap();
-///
-/// let tree = typed_sled::Tree::<u64, BlogPost>::open(&db, "unique_id");
-///
-/// let post = BlogPost {
-///     author: "Mike".to_string(),
-///     title: "The life of the disillusioned".to_string(),
-///     body: "Long story short, he didn't have fun.".to_string(),
-/// };
-/// tree.insert(&0, &post)?;
-///
-/// let mut schema_builder = Schema::builder();
-/// let author = schema_builder.add_text_field("author", TEXT);
-/// let title = schema_builder.add_text_field("title", TEXT);
-/// let body = schema_builder.add_text_field("body", TEXT);
-///
-/// let post_to_document = move |_k, v| {
-///     doc!(
-///         author => v.author.to_owned(),
-///         title => v.title.to_owned(),
-///         body => v.body.to_owned()
-///       )
-///  };
-/// let search_engine = SearchEngine::open_temp(&tree, schema_builder, post_to_document);
-/// let search_result = search_engine.search("life", 10)?;
-///
-/// for result in search_results.iter() {
-///     println!("Found Blog Post with score {}:\n{:#?}", result.0, result.1);
-/// }
-/// # Ok(()) }
-/// ```
+//! ```
+//! use typed_sled::search::SearchEngine;
+//! use tantivy::{
+//!     doc,
+//!     schema::{Schema, TEXT},
+//! };
+//!
+//! #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct BlogPost {
+//!     author: String,
+//!     title: String,
+//!     body: String,
+//! }
+//!
+//! # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = sled::Config::new().temporary(true);
+//! let db = config.open().unwrap();
+//!
+//! let tree = typed_sled::Tree::<u64, BlogPost>::open(&db, "unique_id");
+//!
+//! let post = BlogPost {
+//!     author: "Mike".to_string(),
+//!     title: "The life of the disillusioned".to_string(),
+//!     body: "Long story short, he didn't have fun.".to_string(),
+//! };
+//! tree.insert(&0, &post)?;
+//!
+//! let mut schema_builder = Schema::builder();
+//! let author = schema_builder.add_text_field("author", TEXT);
+//! let title = schema_builder.add_text_field("title", TEXT);
+//! let body = schema_builder.add_text_field("body", TEXT);
+//!
+//! let post_to_document = move |_k, v| {
+//!     doc!(
+//!         author => v.author.to_owned(),
+//!         title => v.title.to_owned(),
+//!         body => v.body.to_owned()
+//!       )
+//!  };
+//! let search_engine = SearchEngine::open_temp(&tree, schema_builder, post_to_document);
+//! let search_result = search_engine.search("life", 10)?;
+//!
+//! for result in search_results.iter() {
+//!     println!("Found Blog Post with score {}:\n{:#?}", result.0, result.1);
+//! }
+//! # Ok(()) }
+//! ```
+//!
+//! [tantivy]: https://docs.rs/tantivy/latest/tantivy/
 use crate::{serialize, Event, Tree, KV};
 
 use std::fs::create_dir_all;
