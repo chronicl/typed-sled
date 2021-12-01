@@ -10,8 +10,7 @@ use typed_sled::search::SearchEngine;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If you want to persist the data use sled::open instead
-    let config = sled::Config::new().temporary(true);
-    let db = config.open().unwrap();
+    let db = sled::Config::new().temporary(true).open().unwrap();
 
     // The id is used by sled to identify which Tree in the database (db) to open
     let tree = typed_sled::key_generating::CounterTree::open(&db, "unique_id");
@@ -35,8 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Creating the search engine. Note that we never finished building the schema_builder
     // as the search engine needs to add one more field to it which maps search results to key and value
     // pairs from the tree.
-    // To persist the search engine in a directory, use `open` instead of `open_temp`.
-    let search_engine = SearchEngine::open_temp(&tree, schema_builder, move |_k, v| {
+    // To persist the search engine in a directory, use `new` instead of `new_temp`.
+    let search_engine = SearchEngine::new_temp(&tree, schema_builder, move |_k, v| {
         doc!(
 
           date => v.date,

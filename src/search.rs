@@ -1,6 +1,55 @@
+//! A search engine for a single tree, using `tantivy` under the hood.
+//! # Example
+/// ```
+/// use typed_sled::search::SearchEngine;
+/// use tantivy::{
+///     doc,
+///     schema::{Schema, TEXT},
+/// };
+///
+/// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// struct BlogPost {
+///     author: String,
+///     title: String,
+///     body: String,
+/// }
+///
+/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let config = sled::Config::new().temporary(true);
+/// let db = config.open().unwrap();
+///
+/// let tree = typed_sled::Tree::<u64, BlogPost>::open(&db, "unique_id");
+///
+/// let post = BlogPost {
+///     author: "Mike".to_string(),
+///     title: "The life of the disillusioned".to_string(),
+///     body: "Long story short, he didn't have fun.".to_string(),
+/// };
+/// tree.insert(&0, &post)?;
+///
+/// let mut schema_builder = Schema::builder();
+/// let author = schema_builder.add_text_field("author", TEXT);
+/// let title = schema_builder.add_text_field("title", TEXT);
+/// let body = schema_builder.add_text_field("body", TEXT);
+///
+/// let post_to_document = move |_k, v| {
+///     doc!(
+///         author => v.author.to_owned(),
+///         title => v.title.to_owned(),
+///         body => v.body.to_owned()
+///       )
+///  };
+/// let search_engine = SearchEngine::open_temp(&tree, schema_builder, post_to_document);
+/// let search_result = search_engine.search("life", 10)?;
+///
+/// for result in search_results.iter() {
+///     println!("Found Blog Post with score {}:\n{:#?}", result.0, result.1);
+/// }
+/// # Ok(()) }
+/// ```
 use crate::{serialize, Event, Tree, KV};
 
-use std::fs::create_dir;
+use std::fs::create_dir_all;
 use std::iter::Iterator;
 use std::thread;
 use std::{marker::PhantomData, path::Path};
@@ -14,17 +63,68 @@ use tantivy::{
     Document, Index, IndexReader, Score, Term,
 };
 
+/// A search engine for a single tree, using `tantivy` under the hood.
+/// # Example
+/// ```
+/// use typed_sled::search::SearchEngine;
+/// use tantivy::{
+///     doc,
+///     schema::{Schema, TEXT},
+/// };
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// struct BlogPost {
+///     author: String,
+///     title: String,
+///     body: String,
+/// }
+///
+/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let config = sled::Config::new().temporary(true);
+/// let db = config.open().unwrap();
+///
+/// let tree = typed_sled::Tree::<u64, BlogPost>::open(&db, "unique_id");
+///
+/// let post = BlogPost {
+///     author: "Mike".to_string(),
+///     title: "The life of the disillusioned".to_string(),
+///     body: "Long story short, he didn't have fun.".to_string(),
+/// };
+/// tree.insert(&0, &post)?;
+///
+/// let mut schema_builder = Schema::builder();
+/// let author = schema_builder.add_text_field("author", TEXT);
+/// let title = schema_builder.add_text_field("title", TEXT);
+/// let body = schema_builder.add_text_field("body", TEXT);
+///
+/// let search_engine = SearchEngine::new_temp(&tree, schema_builder, move |_k, v| {
+///     doc!(
+///         author => v.author.to_owned(),
+///         title => v.title.to_owned(),
+///         body => v.body.to_owned()
+///       )
+///  })?;
+/// let search_results = search_engine.search("life", 10)?;
+///
+/// for result in search_results.iter() {
+///     println!("Found Blog Post with score {}:\n{:#?}", result.0, result.1);
+/// }
+/// # Ok(()) }
+/// ```
 pub struct SearchEngine<K, V> {
     tree: Tree<K, V>,
     pub index: Index,
     index_reader: IndexReader,
     key_field: Field,
-    phantom_key: PhantomData<K>,
-    phantom_value: PhantomData<V>,
+    phantom_key: PhantomData<fn() -> K>,
+    phantom_value: PhantomData<fn() -> V>,
 }
 
 impl<K, V> SearchEngine<K, V> {
-    pub fn open<P: AsRef<Path> + Clone, F>(
+    /// Create a new search engine or if the path already exists
+    /// open an existing search engine.
+    pub fn new<P: AsRef<Path> + Clone, F>(
         path: P,
         tree: &Tree<K, V>,
         schema_builder: SchemaBuilder,
@@ -35,10 +135,11 @@ impl<K, V> SearchEngine<K, V> {
         K: KV + 'static,
         V: KV + 'static,
     {
-        Self::open_with_options(Some(path), tree, schema_builder, f)
+        Self::new_with_options(Some(path), tree, schema_builder, f)
     }
 
-    pub fn open_temp<F>(
+    /// Create a new temporary search engine.
+    pub fn new_temp<F>(
         tree: &Tree<K, V>,
         schema_builder: SchemaBuilder,
         f: F,
@@ -48,11 +149,12 @@ impl<K, V> SearchEngine<K, V> {
         K: KV + 'static,
         V: KV + 'static,
     {
-        Self::open_with_options::<&str, _>(None, tree, schema_builder, f)
+        Self::new_with_options::<&str, _>(None, tree, schema_builder, f)
     }
 
     // Change unwraps
-    pub fn open_with_options<P: AsRef<Path> + Clone, F>(
+    /// Create a new search engine with more options.
+    fn new_with_options<P: AsRef<Path> + Clone, F>(
         path: Option<P>,
         tree: &Tree<K, V>,
         mut schema_builder: SchemaBuilder,
@@ -78,23 +180,26 @@ impl<K, V> SearchEngine<K, V> {
             document
         };
 
+        let mut from_new = false;
         let index = if let Some(path) = path {
-            create_dir(path.clone()).ok();
+            from_new = !create_dir_all(path.clone()).is_err();
             Index::open_or_create(
                 MmapDirectory::open(path).expect("SearchEngine: failed to open directory"),
                 schema,
             )?
         } else {
+            from_new = true;
             Index::create_from_tempdir(schema)?
         };
 
-        let mut index_writer = index.writer(100_000_000)?;
-        for r in tree.iter() {
-            let (k, v) = r?;
-            index_writer.add_document(f(&k, &v));
+        if from_new {
+            let mut index_writer = index.writer(100_000_000)?;
+            for r in tree.iter() {
+                let (k, v) = r?;
+                index_writer.add_document(f(&k, &v));
+            }
+            index_writer.commit()?;
         }
-        index_writer.commit()?;
-        drop(index_writer);
 
         let mut subscriber = tree.watch_all();
         let mut index_writer = index.writer(5_000_000)?;
@@ -127,8 +232,11 @@ impl<K, V> SearchEngine<K, V> {
         })
     }
 
-    // For more info on what queries can be parsed:
-    // https://docs.rs/tantivy/latest/tantivy/query/struct.QueryParser.html
+    /// Search for all key value pairs matching a query. The query will be
+    /// parsed by the `QueryParser` from `tantivy`. All fields of the schema
+    /// will be queried.
+    /// For more info on what queries can be used:
+    /// https://docs.rs/tantivy/latest/tantivy/query/struct.QueryParser.html
     pub fn search(
         &self,
         query: &str,
@@ -151,6 +259,8 @@ impl<K, V> SearchEngine<K, V> {
         self.search_with_query(&query, limit)
     }
 
+    /// Search for all key value pairs matching a custom query.
+    /// See `tantivy` queries for what type of queries can be used.
     pub fn search_with_query(
         &self,
         query: &dyn Query,
@@ -187,6 +297,10 @@ impl<K, V> SearchEngine<K, V> {
         Ok(v)
     }
 
+    /// Search for all key value pairs matching a query and collect them with a custom collector.
+    /// The query will be parsed by the `QueryParser` from `tantivy`. All fields of the schema
+    /// will be queried.
+    /// See `tantivy` for what type of collectors can be used.
     pub fn search_with_collector<C: Collector>(
         &self,
         query: &str,
@@ -205,6 +319,8 @@ impl<K, V> SearchEngine<K, V> {
         self.search_with_query_and_collector(&query, collector)
     }
 
+    /// Search for all key value pairs matching a custom query and collect them with a custom collector.
+    /// See `tantivy` for what type of queries and collectors can be used.
     pub fn search_with_query_and_collector<C: Collector>(
         &self,
         query: &dyn Query,
@@ -214,6 +330,9 @@ impl<K, V> SearchEngine<K, V> {
         Ok(searcher.search(query, collector)?)
     }
 
+    /// Retrieve the key value pair corresponding to a `DocAdress`.
+    /// This can for example be used after using `search_with_collector` with
+    /// a custom collector which yields `DocAdress`es.
     pub fn doc_address_to_kv(&self, doc_addr: DocAddress) -> Result<Option<(K, V)>, SearchError>
     where
         K: KV,
@@ -233,6 +352,9 @@ impl<K, V> SearchEngine<K, V> {
         Ok(kv)
     }
 
+    /// Retrieve the key value pair corresponding to an Iterator over `DocAdress`.
+    /// This can for example be used after using `search_with_collector` with
+    /// a custom collector which yields `DocAdress`es.
     pub fn doc_adresses_to_kvs<I: Iterator<Item = DocAddress>>(
         &self,
         doc_addrs: I,
@@ -257,6 +379,11 @@ impl<K, V> SearchEngine<K, V> {
             v.push(kv);
         }
         Ok(v)
+    }
+
+    /// Get the index of the SearchEngine.
+    pub fn index(&self) -> &Index {
+        &self.index
     }
 }
 
