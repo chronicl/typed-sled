@@ -15,6 +15,7 @@ bincode = "1"
 tantivy = {version = "0.16", optional = true}
 pin-project = "1"
 thiserror = "1"
+ouroboros = "0.14"
 chrono = {version = "0.4", features = ["serde"], optional = true}
 
 [[example]]

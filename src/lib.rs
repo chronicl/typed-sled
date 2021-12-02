@@ -102,9 +102,18 @@ impl<K, V> Clone for Tree<K, V> {
 }
 
 /// Trait alias for bounds required on keys and values.
-pub trait KV: for<'a> serde::Deserialize<'a> + Serialize {}
+/// For now only types that implement DeserializeOwned
+/// are supported.
+// [specilization] might make
+// supporting any type that implements Deserialize<'a>
+// possible without much overhead. Otherwise the branch
+// custom_de_serialization introduces custom (de)serialization
+// for each `Tree` which might also make it possible.
+//
+// [specilization]: https://github.com/rust-lang/rust/issues/31844
+pub trait KV: serde::de::DeserializeOwned + Serialize {}
 
-impl<T: for<'a> serde::Deserialize<'a> + Serialize> KV for T {}
+impl<T: serde::de::DeserializeOwned + Serialize> KV for T {}
 
 /// Compare and swap error.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
