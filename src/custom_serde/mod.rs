@@ -1,12 +1,11 @@
-//! Module providing support for custom (de)serialization.
+//! Support for custom (de)serialization.
 //!
-//! This module exports the same types as the root module, but the types take
-//! and additional generic parameter called `SerDe`. The `SerDe` type
+//! This module exports the same types as the root module, however the types take
+//! an additional generic parameter called `SerDe`. The `SerDe` type
 //! must implement the trait [SerDe][crate::custom_serde::serialize::SerDe] which defines how (de)serialization takes place.
 //!
-//! The [Tree<K, V>][crate::Tree] export from the root is equivalent to the
-//! [Tree<K, V, BincodeSerDe>][crate::custom_serde::Tree] export from
-//! this module.
+//! The [Tree<K, V>][crate::Tree] is equivalent to
+//! [Tree<K, V, BincodeSerDe>][crate::custom_serde::Tree] from this module.
 //!
 //! The following features are supported for the custom (de)serialization Tree:
 //! * [key_generating][self::key_generating]: Create `Tree`s with automatically generated keys.
@@ -21,7 +20,8 @@
 //! struct SomeValue<'a>(&'a str);
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+//!     // Creating a temporary sled database.
+//!     // If you want to persist the data use sled::open instead.
 //!     let db = sled::Config::new().temporary(true).open().unwrap();
 //!
 //!     // Notice that we are using &str, and SomeValue<'a> here which do not implement
@@ -79,7 +79,8 @@ pub mod key_generating;
 /// struct SomeValue<'a>(&'a str);
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+///     // Creating a temporary sled database.
+///     // If you want to persist the data use sled::open instead.
 ///     let db = sled::Config::new().temporary(true).open().unwrap();
 ///
 ///     // Notice that we are using &str, and SomeValue<'a> here which do not implement
@@ -135,7 +136,8 @@ impl<K, V, SerDe> Tree<K, V, SerDe> {
     /// struct SomeValue<'a>(&'a str);
     ///
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+    ///     // Creating a temporary sled database.
+    ///     // If you want to persist the data use sled::open instead.
     ///     let db = sled::Config::new().temporary(true).open().unwrap();
     ///
     ///     // Notice that we are using &str, and SomeValue<'a> here which do not implement

@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use typed_sled::custom_serde::{serialize::BincodeSerDeLazy, Tree};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+    // Creating a temporary sled database.
+    // If you want to persist the data use sled::open instead.
     let db = sled::Config::new().temporary(true).open().unwrap();
 
     // Notice that we are using &str, and SomeValue<'a> here which do not implement

@@ -5,7 +5,8 @@
 //! use typed_sled::key_generating::CounterTree;
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+//!     // Creating a temporary sled database.
+//!     // If you want to persist the data use sled::open instead.
 //!     let db = sled::Config::new().temporary(true).open().unwrap();
 //!
 //!     // The id is used by sled to identify which Tree in the database (db) to open.

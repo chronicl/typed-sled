@@ -1,7 +1,7 @@
 //! typed-sled - a database build on top of sled.
 //!
-//! sled is a high-performance embedded database with an API that is similar to a BTreeMap<[u8], [u8]>,
-//! typed-sled builds on top of sled and offers an API that is similar to BTreeMap<K, V>, where
+//! sled is a high-performance embedded database with an API that is similar to a `BTreeMap<[u8], [u8]>`.  
+//! typed-sled builds on top of sled and offers an API that is similar to `BTreeMap<K, V>`, where
 //! K and V are user defined types which implement [Deserialize][serde::Deserialize] and [Serialize][serde::Serialize].
 //!
 //! # features
@@ -20,10 +20,11 @@
 //! struct SomeValue(u32);
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+//!     // Creating a temporary sled database.
+//!     // If you want to persist the data use sled::open instead.
 //!     let db = sled::Config::new().temporary(true).open().unwrap();
 //!
-//!     // The id is used by sled to identify which Tree in the database (db) to open.
+//!     // The id is used by sled to identify which Tree in the database (db) to open
 //!     let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
 //!
 //!     tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
@@ -67,7 +68,8 @@ use std::marker::PhantomData;
 /// struct SomeValue(u32);
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+///     // Creating a temporary sled database.
+///     // If you want to persist the data use sled::open instead.
 ///     let db = sled::Config::new().temporary(true).open().unwrap();
 ///
 ///     // The id is used by sled to identify which Tree in the database (db) to open.
@@ -142,7 +144,8 @@ impl<K, V> Tree<K, V> {
     /// struct SomeValue(u32);
     ///
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
+    ///     // Creating a temporary sled database.
+    ///     // If you want to persist the data use sled::open instead.
     ///     let db = sled::Config::new().temporary(true).open().unwrap();
     ///
     ///     // The id is used by sled to identify which Tree in the database (db) to open.
