@@ -1,43 +1,47 @@
 //! Sled with Types instead of Bytes.
 //!
-//! This crate builds on top of [sled] and handles the (de)serialization
-//! of keys and values that are inserted into a sled::Tree for you.
-//! It also includes a few convenience features:
-//! * [convert]: Convert any `Tree` into another `Tree` with different key and value types.
-//! * [key_generating]: Create `Tree`s with automatically generated keys.
-//! * [search]: `SearchEngine` on top of a `Tree`.
+//! This crate builds on top of [sled], a high-performance embedded database with
+//! an API that is similar to a `BTreeMap<[u8], [u8]>`.
 //!
-//! Some info about [sled]:
-//! `sled` is a high-performance embedded database with
-//! an API that is similar to a `BTreeMap<[u8], [u8]>`,
-//! but with several additional capabilities for
-//! assisting creators of stateful systems. It is fully thread-safe,
-//! and all operations are atomic.
+//! The (de)serialization of keys and values that are inserted into a sled::Tree is handled for you
+//! and multiple features for common use cases are also available:
+//! * [search]: `SearchEngine` on top of a `Tree`.
+//! * [key_generating]: Create `Tree`s with automatically generated keys.
+//! * [convert]: Convert any `Tree` into another `Tree` with different key and value types.
+//! * [custom_serde]: Create `Tree`s with custom (de)serialization. This for example makes
+//!                   lazy or zero-copy (de)serialization possible.
 //!
 //! # Example
 //! ```
-//! # use serde::{Serialize, Deserialize};
-//! #
-//! # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! # enum Animal {
-//! #     Dog,
-//! #    Cat,
-//! # }
+//! use serde::{Deserialize, Serialize};
 //!
-//! # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let config = sled::Config::new().temporary(true);
-//! let db = config.open().unwrap();
+//! #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct SomeValue(u32);
 //!
-//! // The id is used by sled to identify which Tree in the database (db) to open.
-//! let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // If you want to persist the data use sled::open instead
+//!     let db = sled::Config::new().temporary(true).open().unwrap();
 //!
-//! let larry = "Larry".to_string();
-//! animals.insert(&larry, &Animal::Dog)?;
-//! assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
-//! # Ok(()) }
+//!     // The id is used by sled to identify which Tree in the database (db) to open.
+//!     let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
+//!
+//!     tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
+//!
+//!     assert_eq!(tree.get(&"some_key".to_owned())?, Some(SomeValue(10)));
+//!     Ok(())
+//! }
 //! ```
-//!
 //! [sled]: https://docs.rs/sled/latest/sled/
+
+#[cfg(feature = "convert")]
+pub mod convert;
+#[cfg(feature = "key-generating")]
+pub mod key_generating;
+#[cfg(feature = "search")]
+pub mod search;
+
+pub mod custom_serde;
+
 use core::fmt;
 use core::iter::{DoubleEndedIterator, Iterator};
 use core::ops::{Bound, RangeBounds};
@@ -48,17 +52,6 @@ use sled::{
 };
 use std::marker::PhantomData;
 
-pub use sled;
-
-#[cfg(feature = "convert")]
-pub mod convert;
-
-#[cfg(feature = "key-generating")]
-pub mod key_generating;
-
-#[cfg(feature = "search")]
-pub mod search;
-
 // pub trait Bin = DeserializeOwned + Serialize + Clone + Send + Sync;
 
 /// A flash-sympathetic persistent lock-free B+ tree.
@@ -67,20 +60,23 @@ pub mod search;
 ///
 /// # Example
 /// ```
-/// # use serde::{Serialize, Deserialize};
-/// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// # enum Animal {
-/// #     Dog,
-/// #    Cat,
-/// # }
+/// use serde::{Deserialize, Serialize};
 ///
-/// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let config = sled::Config::new().temporary(true);
-/// let db = config.open().unwrap();
+/// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// struct SomeValue(u32);
 ///
-/// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
-/// animals.insert(&"Larry".to_string(), &Animal::Dog);
-/// # Ok(()) }
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // If you want to persist the data use sled::open instead
+///     let db = sled::Config::new().temporary(true).open().unwrap();
+///
+///     // The id is used by sled to identify which Tree in the database (db) to open.
+///     let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
+///
+///     tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
+///
+///     assert_eq!(tree.get(&"some_key".to_owned())?, Some(SomeValue(10)));
+///     Ok(())
+/// }
 /// ```
 #[derive(Debug)]
 pub struct Tree<K, V> {
@@ -110,7 +106,7 @@ impl<K, V> Clone for Tree<K, V> {
 // custom_de_serialization introduces custom (de)serialization
 // for each `Tree` which might also make it possible.
 //
-// [specilization]: https://github.com/rust-lang/rust/issues/31844
+// [specialization]: https://github.com/rust-lang/rust/issues/31844
 pub trait KV: serde::de::DeserializeOwned + Serialize {}
 
 impl<T: serde::de::DeserializeOwned + Serialize> KV for T {}
@@ -139,21 +135,23 @@ impl<K, V> Tree<K, V> {
     /// # Example
     ///
     /// ```
-    /// # use serde::{Serialize, Deserialize};
-    /// #
-    /// # #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-    /// # enum Animal {
-    /// #     Dog,
-    /// #    Cat,
-    /// # }
+    /// use serde::{Deserialize, Serialize};
     ///
-    /// # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let config = sled::Config::new().temporary(true);
-    /// let db = config.open().unwrap();
+    /// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// struct SomeValue(u32);
     ///
-    /// let animals = typed_sled::Tree::<String, Animal>::open(&db, "animals");
-    /// animals.insert(&"Larry".to_string(), &Animal::Dog)?;
-    /// # Ok(()) }
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     // If you want to persist the data use sled::open instead
+    ///     let db = sled::Config::new().temporary(true).open().unwrap();
+    ///
+    ///     // The id is used by sled to identify which Tree in the database (db) to open.
+    ///     let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
+    ///
+    ///     tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
+    ///
+    ///     assert_eq!(tree.get(&"some_key".to_owned())?, Some(SomeValue(10)));
+    ///     Ok(())
+    /// }
     /// ```
     pub fn open<T: AsRef<str>>(db: &sled::Db, id: T) -> Self {
         Self {

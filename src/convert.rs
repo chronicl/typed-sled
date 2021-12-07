@@ -1,22 +1,23 @@
 //! Convert one typed [Tree][crate::Tree] into another.
 //! # Example
 //! ```
-//! # pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!  let db = sled::Config::new().temporary(true).open().unwrap();
+//! pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let db = sled::Config::new().temporary(true).open().unwrap();
 //!  
-//!  {
-//!      let old_tree: Tree<u32, u32> = Tree::open(&db, "test_tree");
+//!     {
+//!         let old_tree: Tree<u32, u32> = Tree::open(&db, "test_tree");
 //!  
-//!      old_tree.insert(&1, &2)?;
-//!      old_tree.insert(&3, &4)?;
-//!      old_tree.flush()?;
-//!  }
+//!         old_tree.insert(&1, &2)?;
+//!         old_tree.insert(&3, &4)?;
+//!         old_tree.flush()?;
+//!     }
 //!  
-//!  convert::<u32, u32, u64, u64>(&db, "test_tree");
-//!  let tree: Tree<u64, u64> = Tree::open(&db, "test_tree");
-//!  assert_eq!(tree.get(&1)?.unwrap(), 2);
-//!  assert_eq!(tree.get(&3)?.unwrap(), 4);
-//! # Ok(()) }
+//!     convert::<u32, u32, u64, u64>(&db, "test_tree");
+//!     let tree: Tree<u64, u64> = Tree::open(&db, "test_tree");
+//!     assert_eq!(tree.get(&1)?.unwrap(), 2);
+//!     assert_eq!(tree.get(&3)?.unwrap(), 4);
+//!     Ok(())
+//! }
 //! ```
 use crate::{Tree, KV};
 use std::convert::Into;

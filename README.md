@@ -2,22 +2,45 @@
 
 [![API](https://docs.rs/typed-sled/badge.svg)](https://docs.rs/typed-sled)
 
-This crate builds on top of [sled] and it's api is identical, except that it uses types in all places where sled would use bytes or it's IVec type. Types are binary encoded using [bincode](https://docs.rs/bincode/1.3.3/bincode/index.html).
+This crate builds on top of [sled], a high-performance embedded database with
+an API that is similar to a `BTreeMap<[u8], [u8]>`. This crate handles the
+(de)serialization of keys and values that are inserted into a sled::Tree for you.
+
+## Features
+
+On top of offering a typed Tree, this crate offers multiple features for common use cases:
+
+- Search engine for searching through a trees keys and values using [tantivy].
+- Automatic key generation.
+- Converting one typed Tree to another typed Tree with different key and value types.
+
+## Serialization
+
+By default [bincode] is used for (de)serialization, however custom (de)serializers
+are supported.
 
 ## Example
 
 ```rust
-    let db: sled::Db = sled::open("db")?;
+use serde::{Deserialize, Serialize};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // If you want to persist the data use sled::open instead
+    let db = sled::Config::new().temporary(true).open().unwrap();
 
     // The id is used by sled to identify which Tree in the database (db) to open.
-    let animals = typed_sled::Tree::<String, Animal>::open(&db, "unique_id");
+    let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
 
-    let larry = "Larry".to_string();
-    animals.insert(&larry, &Animal::Dog)?;
+    tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
 
-    assert_eq!(animals.get(&larry)?, Some(Animal::Dog));
+    assert_eq!(tree.get(&"some_key".to_owned())?, Some(SomeValue(10)));
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct SomeValue(u32);
 ```
 
-Not tested throughoutly, in particular the Subscriber api might not be implemented correctly.
-
 [sled]: https://github.com/spacejam/sled
+[bincode]: https://github.com/bincode-org/bincode
+[tantivy]: https://github.com/quickwit-inc/tantivy
