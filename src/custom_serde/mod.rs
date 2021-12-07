@@ -21,7 +21,7 @@
 //! struct SomeValue<'a>(&'a str);
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // If you want to persist the data use sled::open instead
+//!     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
 //!     let db = sled::Config::new().temporary(true).open().unwrap();
 //!
 //!     // Notice that we are using &str, and SomeValue<'a> here which do not implement
@@ -79,7 +79,7 @@ pub mod key_generating;
 /// struct SomeValue<'a>(&'a str);
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // If you want to persist the data use sled::open instead
+///     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
 ///     let db = sled::Config::new().temporary(true).open().unwrap();
 ///
 ///     // Notice that we are using &str, and SomeValue<'a> here which do not implement
@@ -135,7 +135,7 @@ impl<K, V, SerDe> Tree<K, V, SerDe> {
     /// struct SomeValue<'a>(&'a str);
     ///
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     // If you want to persist the data use sled::open instead
+    ///     // Creating a temporary sled database. If you want to persist the data use sled::open instead.
     ///     let db = sled::Config::new().temporary(true).open().unwrap();
     ///
     ///     // Notice that we are using &str, and SomeValue<'a> here which do not implement
