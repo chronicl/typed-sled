@@ -5,15 +5,6 @@
 sled is a high-performance embedded database with an API that is similar to a `BTreeMap<[u8], [u8]>`.  
 typed-sled builds on top of sled and offers an API that is similar to a `BTreeMap<K, V>`, where K and V are user defined types.
 
-## features
-
-Multiple features for common use cases are available:
-
-- Search engine for searching through a tree's keys and values by using [tantivy].
-- Automatic key generation.
-- Custom (de)serialization. By default [bincode] is used for (de)serialization, however custom (de)serializers are supported, making zero-copy or lazy (de)serialization possible.
-- Converting one typed Tree to another typed Tree with different key and value types.
-
 ## Example
 
 ```rust
@@ -37,10 +28,14 @@ Ok(())
 
 ```
 
-sled is a high-performance embedded database with an API that is similar to a BTreeMap<[u8], [u8]>,
-typed-sled builds on top of sled and offers an API that is similar to BTreeMap<K, V>, where
-K and V are user defined types which implement [Deserialize][serde::deserialize] and [Serialize][serde::serialize].
-//!
+## features
+
+Multiple features for common use cases are available:
+
+- Search engine for searching through a tree's keys and values by using [tantivy].
+- Automatic key generation.
+- Custom (de)serialization. By default [bincode] is used for (de)serialization, however custom (de)serializers are supported, making zero-copy or lazy (de)serialization possible.
+- Converting one typed Tree to another typed Tree with different key and value types.
 
 [sled]: https://github.com/spacejam/sled
 [bincode]: https://github.com/bincode-org/bincode
