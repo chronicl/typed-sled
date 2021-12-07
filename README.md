@@ -1,6 +1,7 @@
 # typed-sled - a database build on top of sled
 
 [![API](https://docs.rs/typed-sled/badge.svg)](https://docs.rs/typed-sled)
+
 sled is a high-performance embedded database with an API that is similar to a `BTreeMap<[u8], [u8]>`.  
 typed-sled builds on top of sled and offers an API that is similar to `BTreeMap<K, V>`, where K and V are user defined types.
 
