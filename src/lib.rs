@@ -1,7 +1,7 @@
 //! typed-sled - a database build on top of sled.
 //!
 //! sled is a high-performance embedded database with an API that is similar to a `BTreeMap<[u8], [u8]>`.  
-//! typed-sled builds on top of sled and offers an API that is similar to `BTreeMap<K, V>`, where
+//! typed-sled builds on top of sled and offers an API that is similar to a `BTreeMap<K, V>`, where
 //! K and V are user defined types which implement [Deserialize][serde::Deserialize] and [Serialize][serde::Serialize].
 //!
 //! # features
