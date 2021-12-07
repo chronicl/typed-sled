@@ -4,13 +4,13 @@
 
 This crate builds on top of [sled], a high-performance embedded database with
 an API that is similar to a `BTreeMap<[u8], [u8]>`. The (de)serialization of
-keys and values that are inserted into a sled::Tree for you.
+keys and values that are inserted into a sled::Tree is handled for you.
 
 ## Features
 
 Multiple features for common use cases are available:
 
-- Search engine for searching through a trees keys and values using [tantivy].
+- Search engine for searching through a trees keys and values by using [tantivy].
 - Automatic key generation.
 - Converting one typed Tree to another typed Tree with different key and value types.
 - Custom (de)serialization. By default [bincode] is used for (de)serialization, however custom (de)serializers are supported, making zero-copy or lazy (de)serialization possible.
