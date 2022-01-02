@@ -35,6 +35,8 @@
 //! ```
 //! [sled]: https://docs.rs/sled/latest/sled/
 
+pub use sled::{open, Config};
+
 #[cfg(feature = "convert")]
 pub mod convert;
 #[cfg(feature = "key-generating")]
