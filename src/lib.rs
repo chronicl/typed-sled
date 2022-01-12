@@ -37,6 +37,7 @@
 
 pub use sled::{open, Config};
 
+pub mod cached;
 #[cfg(feature = "convert")]
 pub mod convert;
 #[cfg(feature = "key-generating")]

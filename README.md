@@ -23,9 +23,6 @@ let tree = typed_sled::Tree::<String, SomeValue>::open(&db, "unique_id");
 tree.insert(&"some_key".to_owned(), &SomeValue(10))?;
 
 assert_eq!(tree.get(&"some_key".to_owned())?, Some(SomeValue(10)));
-Ok(())
-
-
 ```
 
 ## features

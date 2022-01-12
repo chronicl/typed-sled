@@ -19,7 +19,7 @@ use std::convert::AsRef;
 /// you need a different Deserializer. Implementing this trait and
 /// using it together with a [Tree][crate::custom_serde::Tree] allows you
 /// to do just that.
-pub trait SerDe<K, V> {
+pub trait SerDe<K, V> { 
     /// Key Serializer
     type SK: Serializer<K>;
     /// Value Serializer
