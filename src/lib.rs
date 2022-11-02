@@ -579,6 +579,8 @@ impl<K, V> Tree<K, V> {
 
 pub trait MergeOperator<K, V>: Fn(K, Option<V>, V) -> Option<V> {}
 
+impl<K, V, F> MergeOperator<K, V> for F where F: Fn(K, Option<V>, V) -> Option<V> {}
+
 pub struct TransactionalTree<'a, K, V> {
     inner: &'a sled::transaction::TransactionalTree,
     _key: PhantomData<fn() -> K>,
