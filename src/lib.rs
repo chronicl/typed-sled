@@ -577,7 +577,54 @@ impl<K, V> Tree<K, V> {
     }
 }
 
+/// # Examples
+///
+/// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use sled::{Config, IVec};
+///
+/// fn concatenate_merge(
+///   _key: String,               // the key being merged
+///   old_value: Option<Vec<f32>>,  // the previous value, if one existed
+///   merged_bytes: Vec<f32>        // the new bytes being merged in
+/// ) -> Option<Vec<f32>> {       // set the new value, return None to delete
+///   let mut ret = old_value
+///     .map(|ov| ov.to_vec())
+///     .unwrap_or_else(|| vec![]);
+///
+///   ret.extend_from_slice(&merged_bytes);
+///
+///   Some(ret)
+/// }
+///
+/// let db = sled::Config::new()
+///   .temporary(true).open()?;
+///
+/// let tree = typed_sled::Tree::<String, Vec<f32>>::open(&db, "unique_id");
+/// tree.set_merge_operator(concatenate_merge);
+/// 
+/// let k = String::from("some_key");
+///
+/// tree.insert(&k, &vec![0.0]);
+/// tree.merge(&k, &vec![1.0]);
+/// tree.merge(&k, &vec![2.0]);
+/// assert_eq!(tree.get(&k)?, Some(vec![0.0, 1.0, 2.0]));
+///
+/// // Replace previously merged data. The merge function will not be called.
+/// tree.insert(&k, &vec![3.0]);
+/// assert_eq!(tree.get(&k)?, Some(vec![3.0]));
+///
+/// // Merges on non-present values will cause the merge function to be called
+/// // with `old_value == None`. If the merge function returns something (which it
+/// // does, in this case) a new value will be inserted.
+/// tree.remove(&k);
+/// tree.merge(&k, &vec![4.0]);
+/// assert_eq!(tree.get(&k)?, Some(vec![4.0]));
+/// # Ok(()) }
+/// ```
 pub trait MergeOperator<K, V>: Fn(K, Option<V>, V) -> Option<V> {}
+
+impl<K, V, F> MergeOperator<K, V> for F where F: Fn(K, Option<V>, V) -> Option<V> {}
 
 pub struct TransactionalTree<'a, K, V> {
     inner: &'a sled::transaction::TransactionalTree,
