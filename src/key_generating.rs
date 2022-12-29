@@ -26,6 +26,7 @@ use sled::transaction::{ConflictableTransactionResult, TransactionResult};
 use sled::Result;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Wraps a type that implements KeyGenerating and uses it to
 /// generate the keys for a typed_sled::Tree.
@@ -164,8 +165,8 @@ impl<'a, KG: KeyGenerating<V, Key = K>, K, V> KeyGeneratingBatch<'a, KG, V> {
 /// A typed_sled::Tree with automatically generated and continuously increasing u64 keys.
 pub type CounterTree<V> = KeyGeneratingTree<Counter, V>;
 
-#[derive(Debug)]
-pub struct Counter(AtomicU64);
+#[derive(Debug, Clone)]
+pub struct Counter(Arc<AtomicU64>);
 
 impl<V: KV> KeyGenerating<V> for Counter {
     type Key = u64;
@@ -175,9 +176,9 @@ impl<V: KV> KeyGenerating<V> for Counter {
             .last()
             .expect("KeyGenerating Counter failed to access sled Tree.")
         {
-            Counter(AtomicU64::new(key + 1))
+            Counter(Arc::new(AtomicU64::new(key + 1)))
         } else {
-            Counter(AtomicU64::new(0))
+            Counter(Arc::new(AtomicU64::new(0)))
         }
     }
 

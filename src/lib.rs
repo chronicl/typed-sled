@@ -602,7 +602,7 @@ impl<K, V> Tree<K, V> {
 ///
 /// let tree = typed_sled::Tree::<String, Vec<f32>>::open(&db, "unique_id");
 /// tree.set_merge_operator(concatenate_merge);
-/// 
+///
 /// let k = String::from("some_key");
 ///
 /// tree.insert(&k, &vec![0.0]);
