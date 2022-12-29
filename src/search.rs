@@ -116,6 +116,7 @@ use tantivy::{
 ///     Ok(())
 /// }
 /// ```
+#[derive(Clone)]
 pub struct SearchEngine<K, V> {
     tree: Tree<K, V>,
     pub index: Index,
@@ -275,10 +276,10 @@ impl<K, V> SearchEngine<K, V> {
         V: KV,
     {
         let searcher = self.index_reader.searcher();
-        println!(
-            "{}",
-            searcher.search(query, &TopDocs::with_limit(limit))?.len()
-        );
+        // println!(
+        //     "{}",
+        //     searcher.search(query, &TopDocs::with_limit(limit))?.len()
+        // );
 
         let mut v = Vec::new();
         for (score, doc_addr) in self

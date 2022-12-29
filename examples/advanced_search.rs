@@ -4,7 +4,7 @@ use tantivy::{
     doc,
     query::{BooleanQuery, Occur, QueryParser, RangeQuery},
     schema::{IntOptions, Schema, Type, TEXT},
-    Term,
+    DateOptions, Term,
 };
 use typed_sled::search::SearchEngine;
 
@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Building a schema which defines how our blog posts will be indexed.
     let mut schema_builder = Schema::builder();
-    let date = schema_builder.add_date_field("date", IntOptions::default().set_indexed());
+    let date = schema_builder.add_date_field("date", DateOptions::default().set_indexed());
     let title = schema_builder.add_text_field("title", TEXT);
     let body = schema_builder.add_text_field("body", TEXT);
 
@@ -37,17 +37,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // pairs from the tree.
     // To persist the search engine in a directory, use `new` instead of `new_temp`.
     let search_engine = SearchEngine::new_temp(&tree, schema_builder, move |_k, v| {
+        let d = tantivy_datetime(v.date);
         doc!(
-
-          date => v.date,
+          date => d,
           title => v.title.to_owned(),
           body => v.body.to_owned()
         )
     })?;
 
     // Waiting so the timestamp of the second blog post is more
-    // than one milliseconds older.
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    // than 100 milliseconds older.
+    std::thread::sleep(std::time::Duration::from_millis(100));
 
     let post2 = BlogPost {
         date: chrono::Utc::now(),
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let date_bound = RangeQuery::new_term_bounds(
         date,
         Type::Date,
-        &Bound::Included(Term::from_field_date(date, &post2.date)),
+        &Bound::Included(Term::from_field_date(date, tantivy_datetime(post2.date))),
         &Bound::Unbounded,
     );
     let query_parser = QueryParser::for_index(&search_engine.index, vec![title, body]);
@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query1 = query_parser.parse_query("life")?;
     let query2 = query_parser.parse_query("happy")?;
 
-    // Printing the results of the searches
+    // Asserting the results of the searches
     assert_eq!(search_engine.search_with_query(&query1, 10)?.len(), 2);
     assert_eq!(search_engine.search_with_query(&query2, 10)?.len(), 1);
     assert_eq!(
@@ -101,6 +101,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
+}
+
+fn tantivy_datetime(date: chrono::DateTime<chrono::Utc>) -> tantivy::DateTime {
+    tantivy::DateTime::from_timestamp_millis(date.timestamp_millis() as i64)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
