@@ -3,7 +3,7 @@ use std::ops::Bound;
 use tantivy::{
     doc,
     query::{BooleanQuery, Occur, QueryParser, RangeQuery},
-    schema::{IntOptions, Schema, Type, TEXT},
+    schema::{Schema, Type, TEXT},
     DateOptions, Term,
 };
 use typed_sled::search::SearchEngine;
@@ -46,8 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
 
     // Waiting so the timestamp of the second blog post is more
-    // than 100 milliseconds older.
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    // than 1 seconds older.
+    std::thread::sleep(std::time::Duration::from_secs(1));
 
     let post2 = BlogPost {
         date: chrono::Utc::now(),
@@ -99,6 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .len(),
         1
     );
+    assert_eq!(search_engine.search("life", 10)?.len(), 2);
 
     Ok(())
 }

@@ -187,6 +187,7 @@ impl<K, V> SearchEngine<K, V> {
 
         let mut from_new = false;
         let index = if let Some(path) = path {
+            // Todo: this from_new isn't reliable
             from_new = !create_dir_all(path.clone()).is_err();
             Index::open_or_create(
                 MmapDirectory::open(path).expect("SearchEngine: failed to open directory"),
@@ -238,28 +239,36 @@ impl<K, V> SearchEngine<K, V> {
     }
 
     /// Search for all key value pairs matching a query. The query will be
-    /// parsed by the `QueryParser` from `tantivy`. All fields of the schema
-    /// will be queried.
+    /// parsed by the `QueryParser` from `tantivy`. All fields of `tanvity::schema::Type::Str`
+    /// will be queried. This includes all fields created with `TEXT` or `STRING`.
     /// For more info on what queries can be used:
     /// https://docs.rs/tantivy/latest/tantivy/query/struct.QueryParser.html
     pub fn search(
         &self,
-        query: &str,
+        query: impl AsRef<str>,
         limit: usize,
     ) -> Result<Vec<(Score, Option<(K, V)>)>, SearchError>
     where
         K: KV,
         V: KV,
     {
+        use tantivy::schema::Type;
+        // Default types are only String like types
         let query_parser = QueryParser::for_index(
             &self.index,
             self.index
                 .schema()
                 .fields()
-                .map(|(field, _)| field)
+                .filter_map(|(field, ty)| {
+                    if matches!(ty.field_type().value_type(), Type::Str) {
+                        Some(field)
+                    } else {
+                        None
+                    }
+                })
                 .collect(),
         );
-        let query = query_parser.parse_query(query)?;
+        let query = query_parser.parse_query(query.as_ref())?;
 
         self.search_with_query(&query, limit)
     }
