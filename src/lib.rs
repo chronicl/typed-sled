@@ -90,6 +90,52 @@ pub struct Tree<K, V> {
     _value: PhantomData<fn() -> V>,
 }
 
+trait Transactional<E = ()> {
+    type View<'a>;
+
+    fn transaction<F, A>(&self, f: F) -> TransactionResult<A, E>
+    where
+        F: for<'a> Fn(Self::View<'a>) -> ConflictableTransactionResult<A, E>;
+}
+
+impl<E, K0, V0, K1, V1> Transactional<E> for (&Tree<K0, V0>, &Tree<K1, V1>) {
+    type View<'a> = (TransactionalTree<'a, K0, K0>, TransactionalTree<'a, K1, K1>);
+
+    fn transaction<F, A>(&self, f: F) -> TransactionResult<A, E>
+    where
+        F: for<'a> Fn(Self::View<'a>) -> ConflictableTransactionResult<A, E>,
+    {
+        use sled::Transactional;
+
+        (&self.0.inner, &self.1.inner).transaction(|trees| {
+            f((
+                TransactionalTree::new(&trees.0),
+                TransactionalTree::new(&trees.1),
+            ))
+        })
+    }
+}
+
+#[test]
+fn test_multiple_tree_transaction() {
+    let db = sled::Config::new().temporary(true).open().unwrap();
+    let tree0 = Tree::<u32, u32>::open(&db, "tree0");
+    let tree1 = Tree::<u32, u32>::open(&db, "tree1");
+
+    (&tree0, &tree1)
+        .transaction(|(tree0, tree1)| {
+            tree0.insert(&0, &0)?;
+            tree1.insert(&0, &0)?;
+            // Todo: E in ConflitableTransactionResult<A, E> is not inferred
+            // automatically, although Transactional<E = ()> has default E = () type.
+            Ok::<(), sled::transaction::ConflictableTransactionError<()>>(())
+        })
+        .unwrap();
+
+    assert_eq!(tree0.get(&0), Ok(Some(0)));
+    assert_eq!(tree1.get(&0), Ok(Some(0)));
+}
+
 // Manual implementation to make ToOwned behave better.
 // With derive(Clone) to_owned() on a reference returns a reference.
 impl<K, V> Clone for Tree<K, V> {
@@ -633,6 +679,14 @@ pub struct TransactionalTree<'a, K, V> {
 }
 
 impl<'a, K, V> TransactionalTree<'a, K, V> {
+    fn new(sled: &'a sled::transaction::TransactionalTree) -> Self {
+        Self {
+            inner: sled,
+            _key: PhantomData,
+            _value: PhantomData,
+        }
+    }
+
     pub fn insert(
         &self,
         key: &K,
