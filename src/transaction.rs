@@ -4,10 +4,6 @@ use sled::transaction::{ConflictableTransactionResult, TransactionResult};
 
 use crate::{deserialize, serialize, Batch, Tree, KV};
 
-// Implementing transaction directly on Tree instead of implementing Transactional for Tree,
-// so the user doesn't need to import Transactional trait.
-impl<K, V> Tree<K, V> {}
-
 pub struct TransactionalTree<'a, K, V> {
     inner: &'a sled::transaction::TransactionalTree,
     _key: PhantomData<fn() -> K>,

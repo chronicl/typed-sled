@@ -44,7 +44,7 @@ pub mod convert;
 pub mod key_generating;
 #[cfg(feature = "search")]
 pub mod search;
-mod transaction;
+pub mod transaction;
 
 pub mod custom_serde;
 

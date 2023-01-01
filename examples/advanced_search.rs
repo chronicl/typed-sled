@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (Occur::Must, query1),
     ]);
     let date_bound_query2 = BooleanQuery::new(vec![
-        (Occur::Must, Box::new(date_bound.clone())),
+        (Occur::Must, Box::new(date_bound)),
         (Occur::Must, query2),
     ]);
     // Recreating query1 and query2 because they can't be cloned easily.
@@ -105,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn tantivy_datetime(date: chrono::DateTime<chrono::Utc>) -> tantivy::DateTime {
-    tantivy::DateTime::from_timestamp_millis(date.timestamp_millis() as i64)
+    tantivy::DateTime::from_timestamp_millis(date.timestamp_millis())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
