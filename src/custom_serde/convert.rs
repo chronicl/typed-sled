@@ -18,7 +18,7 @@
 //!  assert_eq!(tree.get(&3)?.unwrap(), 4);
 //! Ok(()) }
 //! ```
-use crate::custom_serde::serialize::{BincodeSerDe, BincodeSerDeBounds, Key, Value};
+use crate::custom_serde::serialize::{Key, Value};
 use crate::custom_serde::Tree;
 use std::convert::Into;
 
@@ -33,7 +33,7 @@ where
     let mut kvs = Vec::new();
 
     {
-        let tree: Tree<KOld, VOld, SerDeOld> = Tree::open(&db, tree);
+        let tree: Tree<KOld, VOld, SerDeOld> = Tree::open(db, tree);
 
         for kv_pair in tree.iter() {
             kvs.push(kv_pair.unwrap());
@@ -41,7 +41,7 @@ where
     }
 
     db.drop_tree(tree).unwrap();
-    let tree: Tree<KNew, VNew, SerDeNew> = Tree::open(&db, tree);
+    let tree: Tree<KNew, VNew, SerDeNew> = Tree::open(db, tree);
 
     for kv_pair in kvs.drain(..) {
         tree.insert(&kv_pair.0.into(), &kv_pair.1.into()).unwrap();

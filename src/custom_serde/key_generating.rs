@@ -22,7 +22,7 @@
 //!     Ok(())
 //! }
 //! ```
-use crate::custom_serde::serialize::{self, BincodeSerDe, Value};
+use crate::custom_serde::serialize::{self, Value};
 use crate::custom_serde::{Batch, Tree};
 use sled::transaction::{ConflictableTransactionResult, TransactionResult};
 use sled::Result;
@@ -73,7 +73,7 @@ impl<KG: KeyGenerating<V, SerDe>, V, SerDe> KeyGeneratingTree<KG, V, SerDe> {
     where
         SerDe: serialize::SerDe<KG::Key, V>,
     {
-        self.inner.insert(&key, value)
+        self.inner.insert(key, value)
     }
 
     pub fn next_key(&self) -> KG::Key {
@@ -227,6 +227,6 @@ impl<'a, KG: KeyGenerating<V, SerDe>, V, SerDe> Deref
     type Target = crate::custom_serde::TransactionalTree<'a, KG::Key, V, SerDe>;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.inner
     }
 }

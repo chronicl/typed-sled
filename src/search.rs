@@ -185,10 +185,10 @@ impl<K, V> SearchEngine<K, V> {
             document
         };
 
-        let mut from_new = false;
+        let from_new;
         let index = if let Some(path) = path {
             // Todo: this from_new isn't reliable
-            from_new = !create_dir_all(path.clone()).is_err();
+            from_new = create_dir_all(path.clone()).is_ok();
             Index::open_or_create(
                 MmapDirectory::open(path).expect("SearchEngine: failed to open directory"),
                 schema,
@@ -202,26 +202,30 @@ impl<K, V> SearchEngine<K, V> {
             let mut index_writer = index.writer(100_000_000)?;
             for r in tree.iter() {
                 let (k, v) = r?;
-                index_writer.add_document(f(&k, &v));
+                index_writer.add_document(f(&k, &v))?;
             }
             index_writer.commit()?;
         }
 
-        let mut subscriber = tree.watch_all();
+        let subscriber = tree.watch_all();
         let mut index_writer = index.writer(5_000_000)?;
         thread::spawn(move || {
-            while let Some(e) = subscriber.next() {
+            for e in subscriber {
                 match e {
                     Event::Insert { key, value } => {
-                        index_writer.add_document(f(&key, &value));
-                        // How should this error be handled?
-                        index_writer.commit();
+                        index_writer
+                            .add_document(f(&key, &value))
+                            .expect("SearchEngine: failed to add document");
+                        index_writer
+                            .commit()
+                            .expect("SearchEngine: failed to commit");
                     }
                     Event::Remove { key } => {
                         index_writer
                             .delete_term(Term::from_field_bytes(key_field, &serialize(&key)));
-                        // How should this error be handled?
-                        index_writer.commit();
+                        index_writer
+                            .commit()
+                            .expect("SearchEngine: failed to commit");
                     }
                 }
             }
@@ -247,7 +251,7 @@ impl<K, V> SearchEngine<K, V> {
         &self,
         query: impl AsRef<str>,
         limit: usize,
-    ) -> Result<Vec<(Score, Option<(K, V)>)>, SearchError>
+    ) -> Result<SearchResults<K, V>, SearchError>
     where
         K: KV,
         V: KV,
@@ -279,7 +283,7 @@ impl<K, V> SearchEngine<K, V> {
         &self,
         query: &dyn Query,
         limit: usize,
-    ) -> Result<Vec<(Score, Option<(K, V)>)>, SearchError>
+    ) -> Result<SearchResults<K, V>, SearchError>
     where
         K: KV,
         V: KV,
@@ -308,7 +312,7 @@ impl<K, V> SearchEngine<K, V> {
             let kv = self.tree.get_kv_from_raw(key_bytes)?;
             v.push((*score, kv))
         }
-        Ok(v)
+        Ok(SearchResults(v))
     }
 
     /// Search for all key value pairs matching a query and collect them with a custom collector.
@@ -398,6 +402,22 @@ impl<K, V> SearchEngine<K, V> {
     /// Get the index of the SearchEngine.
     pub fn index(&self) -> &Index {
         &self.index
+    }
+}
+
+pub struct SearchResults<K, V>(Vec<(Score, Option<(K, V)>)>);
+
+impl<K, V> std::ops::Deref for SearchResults<K, V> {
+    type Target = Vec<(Score, Option<(K, V)>)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<K, V> std::ops::DerefMut for SearchResults<K, V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

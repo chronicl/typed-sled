@@ -458,32 +458,32 @@ impl<K, V> Tree<K, V> {
     {
         match (range.start_bound(), range.end_bound()) {
             (Bound::Unbounded, Bound::Unbounded) => {
-                return Iter::from_sled(self.inner.range::<&[u8], _>(..))
+                Iter::from_sled(self.inner.range::<&[u8], _>(..))
             }
             (Bound::Unbounded, Bound::Excluded(b)) => {
-                return Iter::from_sled(self.inner.range(..serialize(b)))
+                Iter::from_sled(self.inner.range(..serialize(b)))
             }
             (Bound::Unbounded, Bound::Included(b)) => {
-                return Iter::from_sled(self.inner.range(..=serialize(b)))
+                Iter::from_sled(self.inner.range(..=serialize(b)))
             }
             // FIX: This is not excluding lower bound.
             (Bound::Excluded(b), Bound::Unbounded) => {
-                return Iter::from_sled(self.inner.range(serialize(b)..))
+                Iter::from_sled(self.inner.range(serialize(b)..))
             }
             (Bound::Excluded(b), Bound::Excluded(bb)) => {
-                return Iter::from_sled(self.inner.range(serialize(b)..serialize(bb)))
+                Iter::from_sled(self.inner.range(serialize(b)..serialize(bb)))
             }
             (Bound::Excluded(b), Bound::Included(bb)) => {
-                return Iter::from_sled(self.inner.range(serialize(b)..=serialize(bb)))
+                Iter::from_sled(self.inner.range(serialize(b)..=serialize(bb)))
             }
             (Bound::Included(b), Bound::Unbounded) => {
-                return Iter::from_sled(self.inner.range(serialize(b)..))
+                Iter::from_sled(self.inner.range(serialize(b)..))
             }
             (Bound::Included(b), Bound::Excluded(bb)) => {
-                return Iter::from_sled(self.inner.range(serialize(b)..serialize(bb)))
+                Iter::from_sled(self.inner.range(serialize(b)..serialize(bb)))
             }
             (Bound::Included(b), Bound::Included(bb)) => {
-                return Iter::from_sled(self.inner.range(serialize(b)..=serialize(bb)))
+                Iter::from_sled(self.inner.range(serialize(b)..=serialize(bb)))
             }
         }
     }

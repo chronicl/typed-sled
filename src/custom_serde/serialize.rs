@@ -150,7 +150,7 @@ fn test_lazy() {
     let ref_str_bytes = sled::IVec::from(
         bincode::serialize::<&str>(&"hello there my darling how has your day been?").unwrap(),
     );
-    let l = Lazy::<&str>::new(sled::IVec::from(ref_str_bytes));
+    let l = Lazy::<&str>::new(ref_str_bytes);
     l.deserialize();
 }
 

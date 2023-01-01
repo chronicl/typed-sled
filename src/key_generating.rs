@@ -70,7 +70,7 @@ impl<KG: KeyGenerating<V>, V> KeyGeneratingTree<KG, V> {
         KG::Key: KV,
         V: KV,
     {
-        self.inner.insert(&key, value)
+        self.inner.insert(key, value)
     }
 
     pub fn next_key(&self) -> KG::Key {
@@ -216,6 +216,6 @@ impl<'a, KG: KeyGenerating<V>, V> Deref for KeyGeneratingTransactionalTree<'a, K
     type Target = crate::transaction::TransactionalTree<'a, KG::Key, V>;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.inner
     }
 }
