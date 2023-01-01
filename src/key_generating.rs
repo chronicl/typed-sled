@@ -189,7 +189,7 @@ impl<V: KV> KeyGenerating<V> for Counter {
 
 pub struct KeyGeneratingTransactionalTree<'a, KG: KeyGenerating<V>, V> {
     key_generator: &'a KG,
-    inner: &'a crate::TransactionalTree<'a, KG::Key, V>,
+    inner: &'a crate::transaction::TransactionalTree<'a, KG::Key, V>,
 }
 
 impl<'a, KG: KeyGenerating<V>, V> KeyGeneratingTransactionalTree<'a, KG, V> {
@@ -213,7 +213,7 @@ impl<'a, KG: KeyGenerating<V>, V> KeyGeneratingTransactionalTree<'a, KG, V> {
 }
 
 impl<'a, KG: KeyGenerating<V>, V> Deref for KeyGeneratingTransactionalTree<'a, KG, V> {
-    type Target = crate::TransactionalTree<'a, KG::Key, V>;
+    type Target = crate::transaction::TransactionalTree<'a, KG::Key, V>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

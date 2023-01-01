@@ -36,6 +36,7 @@
 //! [sled]: https://docs.rs/sled/latest/sled/
 
 pub use sled::{open, Config};
+use transaction::TransactionalTree;
 
 #[cfg(feature = "convert")]
 pub mod convert;
@@ -43,6 +44,7 @@ pub mod convert;
 pub mod key_generating;
 #[cfg(feature = "search")]
 pub mod search;
+mod transaction;
 
 pub mod custom_serde;
 
@@ -88,52 +90,6 @@ pub struct Tree<K, V> {
     inner: sled::Tree,
     _key: PhantomData<fn() -> K>,
     _value: PhantomData<fn() -> V>,
-}
-
-trait Transactional<E = ()> {
-    type View<'a>;
-
-    fn transaction<F, A>(&self, f: F) -> TransactionResult<A, E>
-    where
-        F: for<'a> Fn(Self::View<'a>) -> ConflictableTransactionResult<A, E>;
-}
-
-impl<E, K0, V0, K1, V1> Transactional<E> for (&Tree<K0, V0>, &Tree<K1, V1>) {
-    type View<'a> = (TransactionalTree<'a, K0, K0>, TransactionalTree<'a, K1, K1>);
-
-    fn transaction<F, A>(&self, f: F) -> TransactionResult<A, E>
-    where
-        F: for<'a> Fn(Self::View<'a>) -> ConflictableTransactionResult<A, E>,
-    {
-        use sled::Transactional;
-
-        (&self.0.inner, &self.1.inner).transaction(|trees| {
-            f((
-                TransactionalTree::new(&trees.0),
-                TransactionalTree::new(&trees.1),
-            ))
-        })
-    }
-}
-
-#[test]
-fn test_multiple_tree_transaction() {
-    let db = sled::Config::new().temporary(true).open().unwrap();
-    let tree0 = Tree::<u32, u32>::open(&db, "tree0");
-    let tree1 = Tree::<u32, u32>::open(&db, "tree1");
-
-    (&tree0, &tree1)
-        .transaction(|(tree0, tree1)| {
-            tree0.insert(&0, &0)?;
-            tree1.insert(&0, &0)?;
-            // Todo: E in ConflitableTransactionResult<A, E> is not inferred
-            // automatically, although Transactional<E = ()> has default E = () type.
-            Ok::<(), sled::transaction::ConflictableTransactionError<()>>(())
-        })
-        .unwrap();
-
-    assert_eq!(tree0.get(&0), Ok(Some(0)));
-    assert_eq!(tree1.get(&0), Ok(Some(0)));
 }
 
 // Manual implementation to make ToOwned behave better.
@@ -230,11 +186,7 @@ impl<K, V> Tree<K, V> {
         F: Fn(&TransactionalTree<K, V>) -> ConflictableTransactionResult<A, E>,
     {
         self.inner.transaction(|sled_transactional_tree| {
-            f(&TransactionalTree {
-                inner: sled_transactional_tree,
-                _key: PhantomData,
-                _value: PhantomData,
-            })
+            f(&TransactionalTree::new(sled_transactional_tree))
         })
     }
 
@@ -671,77 +623,6 @@ impl<K, V> Tree<K, V> {
 pub trait MergeOperator<K, V>: Fn(K, Option<V>, V) -> Option<V> {}
 
 impl<K, V, F> MergeOperator<K, V> for F where F: Fn(K, Option<V>, V) -> Option<V> {}
-
-pub struct TransactionalTree<'a, K, V> {
-    inner: &'a sled::transaction::TransactionalTree,
-    _key: PhantomData<fn() -> K>,
-    _value: PhantomData<fn() -> V>,
-}
-
-impl<'a, K, V> TransactionalTree<'a, K, V> {
-    fn new(sled: &'a sled::transaction::TransactionalTree) -> Self {
-        Self {
-            inner: sled,
-            _key: PhantomData,
-            _value: PhantomData,
-        }
-    }
-
-    pub fn insert(
-        &self,
-        key: &K,
-        value: &V,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
-    where
-        K: KV,
-        V: KV,
-    {
-        self.inner
-            .insert(serialize(key), serialize(value))
-            .map(|opt| opt.map(|v| deserialize(&v)))
-    }
-
-    pub fn remove(
-        &self,
-        key: &K,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
-    where
-        K: KV,
-        V: KV,
-    {
-        self.inner
-            .remove(serialize(key))
-            .map(|opt| opt.map(|v| deserialize(&v)))
-    }
-
-    pub fn get(
-        &self,
-        key: &K,
-    ) -> std::result::Result<Option<V>, sled::transaction::UnabortableTransactionError>
-    where
-        K: KV,
-        V: KV,
-    {
-        self.inner
-            .get(serialize(key))
-            .map(|opt| opt.map(|v| deserialize(&v)))
-    }
-
-    pub fn apply_batch(
-        &self,
-        batch: &Batch<K, V>,
-    ) -> std::result::Result<(), sled::transaction::UnabortableTransactionError> {
-        self.inner.apply_batch(&batch.inner)
-    }
-
-    pub fn flush(&self) {
-        self.inner.flush()
-    }
-
-    pub fn generate_id(&self) -> Result<u64> {
-        self.inner.generate_id()
-    }
-}
 
 pub struct Iter<K, V> {
     inner: sled::Iter,
